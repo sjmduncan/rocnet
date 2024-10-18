@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "RocNet"
+version = "2024-10"
+authors = [
+  { name = "Stu Duncan", email = "stu@sjmd.dev" },
+]
+description = "Recursive Octree CNN for working with LDAR scans and other 3D data"
+readme = "Readme.md"
+requires-python = ">=3.9"
+classifiers = [
+  "Programming Language :: Python :: 3",
+]
+dependencies = [
+
+]
+
+[project.urls]
+Homepage = "https://git.sjmd.dev/stu/rocnet"
+Issues = "https://git.sjmd.dev/stu/rocnet/issues"
