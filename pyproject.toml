@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "RocNet"
-version = "2024-10"
+version = "2024.10.dev1"
 authors = [
   { name = "Stu Duncan", email = "stu@sjmd.dev" },
 ]
@@ -15,7 +15,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
 ]
 dependencies = [
-
+  "numpy", "toml", "torch", "open3d", "easydict"
 ]
 
 [project.urls]
