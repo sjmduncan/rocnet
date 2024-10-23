@@ -53,6 +53,7 @@ class RocNet:
             self.encoder = model.Encoder(self.cfg)
             self.decoder = model.Decoder(self.cfg)
         elif isinstance(model_or_cfg, str) and pth.splitext(model_or_cfg)[1] == ".pth":
+            self.model_path = model_or_cfg
             self.load(model_or_cfg)
         else:
             raise ValueError("RocNet init requires a model config dict or a path ot an existing .pth file")

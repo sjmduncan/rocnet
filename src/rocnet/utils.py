@@ -105,7 +105,7 @@ def write_file(path: str, data: dict, overwrite_ok: bool = False):
     if exists(path) and not overwrite_ok:
         raise FileExistsError(f"File exists bu overwrite_ok is false: {path}")
     with open(path, "w") as f:
-        toml.dump(data, f)
+        toml.dump(data, f, encoder=toml.TomlNumpyEncoder())
 
 
 def ensure_file(path: str, default_config: dict):
@@ -121,7 +121,7 @@ def ensure_file(path: str, default_config: dict):
     if not exists(path):
         logger.warning(f"Path does not exist. Creating it: '{path}'")
         with open(path, "x") as file:
-            toml.dump(default_config, file)
+            toml.dump(default_config, file, encoder=toml.TomlNumpyEncoder())
             return EasyDict(default_config)
     else:
         logger.info(f"Loading config file {path}")
@@ -138,7 +138,7 @@ def save_file(path: str, data: dict, overwrite: bool):
         raise FileExistsError("File already exists, but overwrite is set to false")
 
     with open(path, "w") as file:
-        toml.dump(data, file)
+        toml.dump(data, file, encoder=toml.TomlNumpyEncoder())
 
 
 def load_file(path: str, default_config: dict = None, quiet=False):
