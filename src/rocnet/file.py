@@ -42,7 +42,7 @@ class RocNetFile:
             "num_tiles": 0,
         }
 
-    def encode(self, path_out: str, pts: np.array, vox_size: float, bundle_decoder: False, overwrite: bool = False, use_lzma: bool = False):
+    def encode(self, path_out: str, pts: np.array, vox_size: float, bundle_decoder: bool = False, overwrite: bool = False, use_lzma: bool = False):
         """Encode the numpy array of points + attributes and write the result to a file
 
         path_out: file to write the encoded pointcloud, extension should be .rnt
