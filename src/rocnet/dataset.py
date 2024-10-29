@@ -64,6 +64,7 @@ class Dataset(torch.utils.data.Dataset):
         self.leaves = []
         self.midfix = "train" if train else "test"
         self.prefix = join(folder, self.midfix)
+        self.grid_div = 1.0
         if exists(join(folder, "meta.toml")):
             with open(join(folder, "meta.toml")) as f:
                 self.metadata = toml.load(f)
@@ -72,8 +73,6 @@ class Dataset(torch.utils.data.Dataset):
                 raise ValueError(f"Dataset grid_dim check failed: expected dataset.grid_dim <= model.grid_dim (found dataset.grid_dim={self.metadata.grid_dim}, model.grid_dim={model_grid_dim})")
             elif "grid_dim" in self.metadata and self.metadata.grid_dim > model_grid_dim:
                 self.grid_div = self.metadata.grid_dim / model_grid_dim
-            else:
-                self.grid_div = None
         else:
             raise FileNotFoundError(f"metadata file not found: {join(folder, 'meta.toml')}")
         self.files = filelist(folder, train, max_samples, recurse=self.metadata.recurse if "recurse" in self.metadata else False, file_list=file_list)
