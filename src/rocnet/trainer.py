@@ -50,6 +50,12 @@ DEFAULT_CONFIG = {
 }
 
 
+def check_training_cfg(cfg):
+    if not cfg.model.has_root_encoder:
+        if cfg.model.node_channels * 64 != cfg.model.feature_code_size:
+            raise ValueError(f"Bad config: has_root_encoder=False, so feature_code_size ({cfg.model.feature_code_size}) should be 64*node_channels (64*{cfg.model.node_channels}={cfg.model.node_channels * 64})")
+
+
 class Trainer:
     def __init__(self, run_dir: str, cfg: dict, dataset: Dataset, valid_dataset: Dataset):
         """"""
