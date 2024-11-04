@@ -62,8 +62,8 @@ class RocNet:
             self.encoder.cuda()
             self.decoder.cuda()
 
-        if self.cfg.grid_dim / self.cfg.leaf_dim < 4:
-            logger.warning(f"Check model config: leaf_dim might be a bit large relative to grid_dim (possible values are 8, 16, 32): (grid_dim/leaf_dim={self.cfg.grid_dim}/{self.cfg.leaf_dim}={self.cfg.grid_dim/self.cfg.leaf_dim})")
+        if self.cfg.grid_dim <= self.cfg.leaf_dim:
+            logger.error(f"leaf_dim={self.cfg.leaf_dim} should be a power of two and less than grid_dim={self.cfg.grid_dim}")
 
     def compress_tile(self, pointcloud: np.array):
         """Encode a point cloud and return a feature code"""
