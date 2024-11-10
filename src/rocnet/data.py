@@ -223,7 +223,6 @@ def features_to_points(leaf_features, node_types, grid_dim: int, leaf_dim: int):
     """Decode a list of node features/types directly to a list of indices, allocating memory only for occupied leaves rather than all grid_dim^3 voxels"""
 
     def sub_features_to_points(leaf_features, node_types, dim, origin):
-        print(node_types[-1], origin)
         if node_types[-1] == Octree.NodeType.LEAF_EMPTY.value:
             return np.array([]).reshape(-1, 3), node_types[:-1], leaf_features[:-1, :, :, :]
         elif node_types[-1] == Octree.NodeType.LEAF_MIX.value:
