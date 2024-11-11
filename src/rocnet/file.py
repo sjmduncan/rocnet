@@ -9,12 +9,45 @@ from pathlib import Path
 
 import numpy as np
 
-from rocnet.data import pc_to_tiles
 from rocnet.rocnet import RocNet
 
 logger = logging.getLogger(__name__)
 log_handler_stdout = logging.StreamHandler(sys.stdout)
 logger.addHandler(log_handler_stdout)
+
+
+def pc_to_tiles(pts: np.array, vox_size: float, tile_grid_dim: int):
+    """Quantise and tile a pointcloud to uint8 tile occpancy grids
+
+    Quantise and deduplicate a pointcloud to vox_size, divide the result into cube-shaped tiles
+    of size tile_grid_dim in voxels.
+
+    pts: array of points
+    vox_size: voxel size, vox_index = pts[idx] // vox_size
+    tile_grid_dim: size of each tile in voxels, must be 64, 128, or 256
+    shift: shift: 3D shift vector to apply to the voxel grid before tiling, array of int
+    returns: list(corners, tiles)
+              corners - grid indices of the bottom-left corners of the tiles (array, dtype=int)
+              tiles - indices of occupied voxels for this tile (array dtype=uint8)
+    """
+    assert tile_grid_dim in [64, 128, 256]
+    grid_pts = np.unique((pts // vox_size).astype(int), axis=0)
+    tile_stack_idx = (grid_pts[:, :2] // tile_grid_dim).astype(int)
+    tile_stack_corners = np.unique(tile_stack_idx, axis=0)
+    tiles = [grid_pts[np.all(tile_stack_idx == corner, axis=1)] for corner in tile_stack_corners]
+
+    tile_bottoms = [np.min(t[:, 2]) for t in tiles]
+    corners_grid = [np.concatenate([tile_grid_dim * z[0], [z[1]]]) for z in zip(tile_stack_corners, tile_bottoms)]
+    tiles = [z[0] - z[1] for z in zip(tiles, corners_grid)]
+    corners_world = [vox_size * c for c in corners_grid]
+    ## FIXME: deal with tall tiles properly.
+    tiles = [t[t[:, 2] < tile_grid_dim] for t in tiles]
+
+    pmax = np.max([np.max(t) for t in tiles])
+    pmin = np.min([np.min(t) for t in tiles])
+    assert pmax < tile_grid_dim and pmin >= 0
+
+    return list(zip(corners_world, [t.astype("uint8") for t in tiles]))
 
 
 class RocNetFile:
@@ -59,7 +92,8 @@ class RocNetFile:
             """Write the next tile origin + feature code to the file, return the number of bytes written"""
             origin_bytes = b"".join([struct.pack("f", v) for v in tile[0]])
             nw = file.write(origin_bytes)
-            nw += file.write(tile[1])
+            tile_bytes = b"".join([struct.pack("f", v) for v in tile[1].reshape(-1)])
+            nw += file.write(tile_bytes)
             return nw
 
         if exists(path_out):
@@ -74,7 +108,7 @@ class RocNetFile:
 
         tileset = pc_to_tiles(pts, vox_size, self._model.cfg.grid_dim)
 
-        codes = [self._model.compress_tile(t[1]) for t in tileset]
+        codes = [self._model.compress_points(t[1]) for t in tileset]
 
         origins = [t[0] for t in tileset]
         with open(path_out, "xb") as f:
@@ -125,7 +159,7 @@ class RocNetFile:
                 [logger.error(e) for e in errs]
                 raise ValueError(f"Mode can't decode this file: {errs}")
             tiles_data = [read_tile(f, file_headers["code_size"]) for _ in range(file_headers["num_tiles"])]
-            tiles = [(self._model.uncompress_tile(np.expand_dims(t[1], 0)) + t[0]) for t in tiles_data]
+            tiles = [(self._model.uncompress_points(np.expand_dims(t[1], 0)) + t[0]) for t in tiles_data]
             return np.concatenate(tiles)
 
     def examine(self, path_in: str):

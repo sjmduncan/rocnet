@@ -141,10 +141,12 @@ def save_file(path: str, data: dict, overwrite: bool):
         toml.dump(data, file, encoder=toml.TomlNumpyEncoder())
 
 
-def load_file(path: str, default_config: dict = None, quiet=False):
+def load_file(path: str, default_config: dict = None, quiet=False, require_exists=True):
     if not exists(path):
+        if require_exists or default_config is None:
+            raise FileNotFoundError(f"Path does not exist: '{path}'")
         logger.warning(f"Path does not exist: '{path}'")
-        raise FileNotFoundError(f"Path does not exist: '{path}'")
+        return EasyDict(default_config)
     else:
         if not quiet:
             logger.info(f"Loading config file {path}")

@@ -10,7 +10,6 @@ from numpy import array, average, concatenate, loadtxt, savetxt
 
 from rocnet.dataset import Dataset
 from rocnet.rocnet import RocNet
-from rocnet.train_torchfold import batch_loss_fold
 from rocnet.utils import td_to_txt
 
 logger = logging.getLogger(__name__)
@@ -111,7 +110,8 @@ class Trainer:
 
         def batch_loss(batch):
             if self.cfg.use_torchfold:
-                return batch_loss_fold(self.model, batch)
+                raise ValueError("Torchfold support is borked")
+                # return batch_loss_fold(self.model, batch)
 
             encoded = [self.model.encoder.encode_tree(tree) for tree in batch]
             batch_losses = torch.cat([self.model.decoder.decode_loss(code, expected_tree) for (code, expected_tree) in zip(encoded, batch)], 0).reshape(-1, 2)

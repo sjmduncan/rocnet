@@ -5,9 +5,9 @@ import logging
 import os.path as pth
 import sys
 
-import numpy as np
 import torch
 
+from rocnet.octree import Octree, features_to_points, points_to_features
 import rocnet.utils as utils
 from rocnet import model as model
 
@@ -65,21 +65,15 @@ class RocNet:
         if self.cfg.grid_dim <= self.cfg.leaf_dim:
             logger.error(f"leaf_dim={self.cfg.leaf_dim} should be a power of two and less than grid_dim={self.cfg.grid_dim}")
 
-    def compress_tile(self, pointcloud: np.array):
-        """Encode a point cloud and return a feature code"""
-        grid = np.zeros([self.cfg.grid_dim, self.cfg.grid_dim, self.cfg.grid_dim], dtype=np.int8)
-        grid[pointcloud[:, 0], pointcloud[:, 1], pointcloud[:, 2]] = 1
-        code = self.encoder(grid)
-        return code.data.cpu().numpy()
+    def compress_points(self, pointcloud):
+        leaf_features, node_types = points_to_features(pointcloud, self.cfg.grid_dim, self.cfg.leaf_dim)
+        tree = Octree(leaf_features, node_types)
+        return self.encoder.encode_tree(tree)
 
-    def uncompress_tile(self, feature_code: np.array, p_min=0.5) -> np.array:
-        """Recover the point cloud from a feature code"""
-        if next(self.decoder.parameters()).is_cuda:
-            input_tensor = torch.tensor(feature_code, dtype=torch.float).cuda()
-        else:
-            input_tensor = torch.tensor(feature_code, dtype=torch.float)
-        grid = self.decoder(input_tensor)
-        return np.nonzero(grid.cpu() > p_min).cpu().numpy()
+    def uncompress_points(self, vector):
+        leaf_features, node_types = self.decoder.decode_tree(torch.Tensor(vector.reshape(1, self.decoder.cfg.feature_code_size)).cuda())
+        points = features_to_points(leaf_features, node_types, self.cfg.grid_dim, self.cfg.leaf_dim)
+        return points
 
     def train(self):
         self.encoder.train()

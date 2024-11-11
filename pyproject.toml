@@ -15,7 +15,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
 ]
 dependencies = [
-  "numpy", "toml", "torch", "laspy", "open3d", "easydict"
+  "numpy", "toml", "torch", "laspy", "easydict"
 ]
 
 [project.urls]

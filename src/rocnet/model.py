@@ -7,11 +7,10 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 
-from rocnet.data import features_to_occupancy, occupancy_to_features
 from rocnet.octree import Octree
 
 
-def leaf_layer_sizes(leaf_dim: int, is_encoder: bool):
+def _leaf_layer_sizes(leaf_dim: int, is_encoder: bool):
     """Get the kernel size, stride, and padding for the three convolutional layers of the leaf encoder or decoder
     leaf_dim should be one of 8, 16, 32
     is_encoder specifies whether this is the encoding or decoding layer (the sizes are reversed for the latter)
@@ -33,14 +32,14 @@ def leaf_layer_sizes(leaf_dim: int, is_encoder: bool):
     return lut[leaf_dim]["kernel_sizes"], lut[leaf_dim]["conv_stride"], lut[leaf_dim]["conv_padding"]
 
 
-def check_params(grid_dim: int, leaf_dim: int, feature_code_size: int):
+def _check_params(grid_dim: int, leaf_dim: int, feature_code_size: int):
     """Check whether grid_dim, leaf_dim, and feature_code_size are valid values"""
-    assert grid_dim in [64, 128, 256]
+    assert grid_dim in [64, 128, 256, 512, 1024, 2048]
     assert leaf_dim in [16, 32]
     assert feature_code_size > 0 and feature_code_size <= 4096
 
 
-class RootEncoder(nn.Module):
+class _RootEncoder(nn.Module):
     """Encode the Octree root node"""
 
     def __init__(self, feature_code_size: int = 200, node_channels: int = 64):
@@ -58,13 +57,13 @@ class RootEncoder(nn.Module):
         return output
 
 
-class LeafEncoder(nn.Module):
+class _LeafEncoder(nn.Module):
     """This encodes non-empty leaf nodes"""
 
     def __init__(self, leaf_dim: int, voxel_channels: int = 1, node_channels: int = 64):
         super().__init__()
 
-        self._layer_ks, self._layer_ss, self._layer_ps = leaf_layer_sizes(leaf_dim, True)
+        self._layer_ks, self._layer_ss, self._layer_ps = _leaf_layer_sizes(leaf_dim, True)
 
         self.conv1 = nn.Conv3d(voxel_channels, 16, kernel_size=self._layer_ks[0], stride=self._layer_ss[0], padding=self._layer_ps[0], bias=False)
         self.bn1 = nn.BatchNorm3d(16, track_running_stats=False)
@@ -94,7 +93,7 @@ class LeafEncoder(nn.Module):
         return leaf_vector
 
 
-class LeafEncoderEmpty(nn.Module):
+class _LeafEncoderEmpty(nn.Module):
     """This encodes empty leaf nodes"""
 
     def __init__(self, node_channels: int):
@@ -106,7 +105,7 @@ class LeafEncoderEmpty(nn.Module):
         return leaf_vector
 
 
-class NodeEncoder(nn.Module):
+class _NodeEncoder(nn.Module):
     """Encode internal nodes"""
 
     def __init__(self, node_channels: int, node_channels_inernal: int):
@@ -144,15 +143,15 @@ class Encoder(nn.Module):
     """Module to encode all the nodes in the  tree"""
 
     def __init__(self, cfg: dict):
-        check_params(cfg.grid_dim, cfg.leaf_dim, cfg.feature_code_size)
+        _check_params(cfg.grid_dim, cfg.leaf_dim, cfg.feature_code_size)
         super().__init__()
-        self.leaf_encoder = LeafEncoder(cfg.leaf_dim, cfg.voxel_channels, cfg.node_channels)
-        self.leaf_encoder_empty = LeafEncoderEmpty(cfg.node_channels)
+        self.leaf_encoder = _LeafEncoder(cfg.leaf_dim, cfg.voxel_channels, cfg.node_channels)
+        self.leaf_encoder_empty = _LeafEncoderEmpty(cfg.node_channels)
         self.n_levels = int(log2(cfg.grid_dim / cfg.leaf_dim))
-        self.node_encoders = [NodeEncoder(cfg.node_channels, cfg.node_channels_internal) for _ in range(self.n_levels)]
+        self.node_encoders = [_NodeEncoder(cfg.node_channels, cfg.node_channels_internal) for _ in range(self.n_levels)]
         [self.add_module(f"NodeEncoder{idx+1}", mod) for idx, mod in enumerate(self.node_encoders)]
         if cfg.has_root_encoder:
-            self.root_encoder = RootEncoder(cfg.feature_code_size, cfg.node_channels)
+            self.root_encoder = _RootEncoder(cfg.feature_code_size, cfg.node_channels)
         self.has_root_encoder = cfg.has_root_encoder
         self.leaf_dim = cfg.leaf_dim
         self.grid_dim = cfg.grid_dim
@@ -189,9 +188,9 @@ class Encoder(nn.Module):
         """Boilerplate to make things work with torchfold"""
         return self.root_encoder(feature)
 
-    def forward(self, input_grid):
-        features, node_types = occupancy_to_features(torch.Tensor(input_grid), self.leaf_dim)
-        tree = Octree(features.float(), node_types.int())
+    def forward(self, leaf_features, node_types):
+        """Convert the provided points to an Octree, encode the octree and return the latent vector"""
+        tree = Octree(leaf_features, node_types)
         return self.encode_tree(tree)
 
     def encode_tree(self, tree: Octree):
@@ -213,7 +212,7 @@ class Encoder(nn.Module):
         return root_code
 
 
-class RootDecoder(nn.Module):
+class _RootDecoder(nn.Module):
     """Decode a randomly sampled noise into a feature vector"""
 
     def __init__(self, feature_code_size: int, node_channels: int = 64):
@@ -233,7 +232,7 @@ class RootDecoder(nn.Module):
         return output
 
 
-class NodeClassifier(nn.Module):
+class _NodeClassifier(nn.Module):
     def __init__(self, feature_code_size: int, classifier_hidden_size: int, node_channels: int):
         super().__init__()
 
@@ -254,7 +253,7 @@ class NodeClassifier(nn.Module):
         return output
 
 
-class NodeDecoder(nn.Module):
+class _NodeDecoder(nn.Module):
     """Decode an input (parent) feature into a left-child and a right-child feature"""
 
     def __init__(self, node_channels: int, node_channels_internal: int):
@@ -279,11 +278,11 @@ class NodeDecoder(nn.Module):
         return [self.tanh(bn(mlp(vector))) for (bn, mlp) in zip(self.child_bn, self.child_mlp)]
 
 
-class LeafDecoder(nn.Module):
+class _LeafDecoder(nn.Module):
     def __init__(self, leaf_dim: int, voxel_channels: int = 1, node_channels: int = 64):
         super().__init__()
 
-        self._layer_ks, self._layer_ss, self._layer_ps = leaf_layer_sizes(leaf_dim, False)
+        self._layer_ks, self._layer_ss, self._layer_ps = _leaf_layer_sizes(leaf_dim, False)
 
         self.deconv2 = nn.ConvTranspose3d(node_channels, 32, kernel_size=self._layer_ks[0], stride=self._layer_ss[0], padding=self._layer_ps[0], bias=False)
         self.bn2 = nn.BatchNorm3d(32, track_running_stats=False)
@@ -326,17 +325,17 @@ class Decoder(nn.Module):
         classifier_hidden_size: ???
 
         """
-        check_params(cfg.grid_dim, cfg.leaf_dim, cfg.feature_code_size)
+        _check_params(cfg.grid_dim, cfg.leaf_dim, cfg.feature_code_size)
         super().__init__()
         self.cfg = cfg
-        self.leaf_decoder = LeafDecoder(cfg.leaf_dim, cfg.voxel_channels, cfg.node_channels)
+        self.leaf_decoder = _LeafDecoder(cfg.leaf_dim, cfg.voxel_channels, cfg.node_channels)
         self.n_levels = int(log2(cfg.grid_dim / cfg.leaf_dim))
-        self.node_decoders = [NodeDecoder(cfg.node_channels, cfg.node_channels_internal) for _ in range(self.n_levels)]
+        self.node_decoders = [_NodeDecoder(cfg.node_channels, cfg.node_channels_internal) for _ in range(self.n_levels)]
         [self.add_module(f"NodeDecoder{idx+1}", mod) for idx, mod in enumerate(self.node_decoders)]
         if cfg.has_root_encoder:
-            self.root_decoder = RootDecoder(cfg.feature_code_size, cfg.node_channels)
+            self.root_decoder = _RootDecoder(cfg.feature_code_size, cfg.node_channels)
         self.has_root_decoder = cfg.has_root_encoder
-        self.node_classifier = NodeClassifier(cfg.feature_code_size, cfg.classifier_hidden_size, cfg.node_channels)
+        self.node_classifier = _NodeClassifier(cfg.feature_code_size, cfg.classifier_hidden_size, cfg.node_channels)
         self.leaf_dim = cfg.leaf_dim
         self.grid_dim = cfg.grid_dim
 
@@ -346,15 +345,16 @@ class Decoder(nn.Module):
         self.cre_occupied_factor = cfg.loss_params.recon_cre_gamma * cfg.loss_params.recon_cre_scale
         self.cre_empty_factor = (1 - cfg.loss_params.recon_cre_gamma) * cfg.loss_params.recon_cre_scale
 
-    def forward(self, feature_vector):
-        """
-        Decode a root code down to leaves
-        """
+    def forward(self, latent_vector):
+        """Decode the latent vector and return an array of points"""
+        return self.decode_tree(latent_vector)
+
+    def decode_tree(self, latent_vector):
         if self.has_root_decoder:
-            decode = self.root_decoder(feature_vector)
+            decode = self.root_decoder(latent_vector)
             stack = [decode]
         else:
-            stack = [feature_vector.reshape(self.cfg.node_channels, 4, 4, 4).unsqueeze(0)]
+            stack = [latent_vector.reshape(self.cfg.node_channels, 4, 4, 4).unsqueeze(0)]
         leaf_features = []
         node_types = []
         depth = [1]
@@ -382,14 +382,9 @@ class Decoder(nn.Module):
             node_types.append(label)
         node_types_sorted_tensor = np.squeeze(np.flip(np.array(node_types)))
         features_tensor = torch.flip(torch.cat(leaf_features, 0), [0])
-        (
-            grid,
-            _,
-            __,
-        ) = features_to_occupancy(features_tensor, node_types_sorted_tensor, self.grid_dim)
-        return grid
+        return features_tensor, node_types_sorted_tensor
 
-    def recon_loss_fn(self, leaf_est, leaf_gt):
+    def _recon_loss_fn(self, leaf_est, leaf_gt):
         """Binary cross-entropy loss similar to that formulated by Brock2016
 
         self.cre_gamma corresponds to the gamma factor in Brock2016, however target/observed values remain on the [0..1] range.
@@ -401,8 +396,8 @@ class Decoder(nn.Module):
         loss = torch.cat([torch.sum(-((gt.mul(self.cre_occupied_factor).mul(torch.log(est))).add((1 - gt).mul(self.cre_empty_factor).mul(torch.log(1 - est))))).mul(self.recon_scale).unsqueeze(0) for est, gt in zip(leaf_est, leaf_gt)], 0)
         return loss
 
-    def label_loss_fn(self, label_est, label_gt):
-        loss = torch.cat([self.classify_creloss(l_est.unsqueeze(0), l_gt.unsqueeze(0)).unsqueeze(0).mul(self.label_scale) for l_est, l_gt in zip(label_est, label_gt)], 0)
+    def _classify_loss_fn(self, class_est, class_gt):
+        loss = torch.cat([self.classify_creloss(l_est.unsqueeze(0), l_gt.unsqueeze(0)).unsqueeze(0).mul(self.label_scale) for l_est, l_gt in zip(class_est, class_gt)], 0)
         return loss
 
     def decode_loss(self, feature_code, expected_tree):
@@ -417,13 +412,13 @@ class Decoder(nn.Module):
 
         def decode_node_leaf(tgt, est, l):
             label_prob = self.node_classifier(est)
-            label_loss = self.label_loss_fn(label_prob, tgt.node_type.cuda())
+            label_loss = self._classify_loss_fn(label_prob, tgt.node_type.cuda())
             if tgt.is_leaf():
                 if tgt.is_empty_leaf():
                     return torch.tensor([0.0], device="cuda", requires_grad=False), label_loss
                 else:
                     fea = self.leaf_decoder(est)
-                    recon_loss = self.recon_loss_fn(fea, tgt.leaf_feature.cuda())
+                    recon_loss = self._recon_loss_fn(fea, tgt.leaf_feature.cuda())
                     return recon_loss, label_loss
             else:  # Non-leaf node
                 children = self.node_decoders[l](est)
