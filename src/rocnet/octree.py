@@ -4,7 +4,7 @@ import torch
 import numpy as np
 
 
-def points_to_features(occupied_indices, grid_dim: int, leaf_dim: int):
+def points_to_features(occupied_indices, grid_dim: int, leaf_dim: int, channels: int = 0):
     """Encode a list of occupied indices to a list of node features/types, allocating memory only for occupied leaves rather than all grid_dim^3 voxels
 
     occupied_indices: numpy array of indices of occupied voxels
@@ -23,14 +23,14 @@ def points_to_features(occupied_indices, grid_dim: int, leaf_dim: int):
         if dim < leaf_dim:
             raise ValueError("sub_dim should always be larger than leaf_dim")
         tr = origin + np.array([dim, dim, dim])
-        octant_indices = indices[np.all(list(zip(np.all(indices >= origin, axis=1), np.all(indices < tr, axis=1))), axis=1)]
+        octant_indices = indices[np.all(list(zip(np.all(indices[:, :3] >= origin, axis=1), np.all(indices[:, :3] < tr, axis=1))), axis=1)]
         if len(octant_indices) == 0:
-            leaf_features.append(torch.zeros([leaf_dim, leaf_dim, leaf_dim]))
+            leaf_features.append(torch.zeros([channels + 1, leaf_dim, leaf_dim, leaf_dim]))
             return torch.tensor([Octree.NodeType.LEAF_EMPTY.value])
         elif dim == leaf_dim:
-            occupancy = torch.zeros([leaf_dim, leaf_dim, leaf_dim])
-            local_indices = octant_indices - origin
-            occupancy[local_indices[:, 0], local_indices[:, 1], local_indices[:, 2]] = 1
+            local_indices = octant_indices[:, :3] - origin
+            occupancy = torch.zeros([channels + 1, leaf_dim, leaf_dim, leaf_dim])
+            occupancy[:, local_indices[:, 0], local_indices[:, 1], local_indices[:, 2]] = torch.cat([torch.ones(local_indices.shape[0]).unsqueeze(1), torch.Tensor(octant_indices[:, 3:])], axis=1).T
             leaf_features.append(occupancy)
             return torch.tensor([Octree.NodeType.LEAF_MIX.value])
         else:
@@ -64,14 +64,15 @@ def points_to_features(occupied_indices, grid_dim: int, leaf_dim: int):
     return torch.stack(leaf_features).type(torch.float32), node_types
 
 
-def features_to_points(leaf_features, node_types, grid_dim: int, leaf_dim: int):
+def features_to_points(leaf_features, node_types, grid_dim: int, channels: int = 1):
     """Decode a list of node features/types directly to a list of indices, allocating memory only for occupied leaves rather than all grid_dim^3 voxels"""
 
     def sub_features_to_points(leaf_features, node_types, dim, origin):
         if node_types[-1] == Octree.NodeType.LEAF_EMPTY.value:
-            return np.array([]).reshape(-1, 3), node_types[:-1], leaf_features[:-1, :, :, :]
+            return np.array([]).reshape(-1, 3 + channels), node_types[:-1], leaf_features[:-1, :, :, :]
         elif node_types[-1] == Octree.NodeType.LEAF_MIX.value:
-            pts = np.nonzero(leaf_features[-1].cpu() > 0.5) + origin
+            pts = np.nonzero(leaf_features[-1].cpu()[0, :, :, :] > 0.5)
+            pts = torch.cat([pts + origin, leaf_features[-1][1:, pts[:, 0], pts[:, 1], pts[:, 2]].T], 1)
             return pts, node_types[:-1], leaf_features[:-1, :, :, :]
         else:
             octant_dim = dim // 2
@@ -176,7 +177,7 @@ class Octree(object):
     def __init__(self, node_features, node_types):
         """Construct an octree from a post-ordered list of nodes and node types"""
         self.max_depth = 6
-        feature_list = [b.unsqueeze(0) for b in torch.split(node_features, 1, 0)]
+        feature_list = [b for b in torch.split(node_features, 1, 0)]
         feature_list.reverse()
         node_list = [b.unsqueeze(0) for b in torch.split(node_types, 1, 0)]
         stack = []

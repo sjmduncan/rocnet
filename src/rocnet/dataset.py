@@ -18,14 +18,21 @@ from rocnet.octree import Octree, points_to_features
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_METADATA = {"type": "tileset", "rel_path": "", "recurse": False, "grid_dim": 64, "vox_size": 1.0, "files_in": [["", ""]], "transforms": [[], []]}
+DEFAULT_METADATA = {
+    "type": "tileset",
+    "rel_path": "",
+    "recurse": False,
+    "grid_dim": 64,
+    "vox_size": 1.0,
+    "vox_attrib":"RGB",
+    "files_in": [["", ""]],
+    "transforms": [[], []],
+}
 
 
 def load_npy(file_path, scale, grid_dim):
     pts = np.load(file_path, allow_pickle=True)
-    if scale is not None:
-        pts = np.unique((pts * scale) // 1, axis=0).astype("int")
-    return pts
+    return pts.astype("float32")
 
 
 def load_laz_as_voxel_indices(filepath, vox_size):
@@ -132,7 +139,7 @@ class Dataset(torch.utils.data.Dataset):
         if self.metadata.type == "tileset":
             for f in tqdm(self.files):
                 indices = load_npy(f, 1.0 / self.grid_div, grid_dim)
-                features, labels = points_to_features(indices, grid_dim, leaf_dim)
+                features, labels = points_to_features(indices, grid_dim, leaf_dim, 3)
                 tree = Octree(features.float(), labels.int())
                 self.trees.append(tree)
         else:
