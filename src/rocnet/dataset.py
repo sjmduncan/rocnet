@@ -24,7 +24,7 @@ DEFAULT_METADATA = {
     "recurse": False,
     "grid_dim": 64,
     "vox_size": 1.0,
-    "vox_attrib":"RGB",
+    "vox_attrib": "RGB",
     "files_in": [["", ""]],
     "transforms": [[], []],
 }
@@ -139,7 +139,8 @@ class Dataset(torch.utils.data.Dataset):
         if self.metadata.type == "tileset":
             for f in tqdm(self.files):
                 indices = load_npy(f, 1.0 / self.grid_div, grid_dim)
-                features, labels = points_to_features(indices, grid_dim, leaf_dim, 3)
+                indices[:, 3:] = indices[:, 3:] / 256
+                features, labels = points_to_features(indices, grid_dim, leaf_dim, indices.shape[1] - 3)
                 tree = Octree(features.float(), labels.int())
                 self.trees.append(tree)
         else:

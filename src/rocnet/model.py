@@ -393,8 +393,10 @@ class Decoder(nn.Module):
         The Liu2020 implementation originally scaled the 'occupied' half by 5 and then scaled the total score by 0.001.
         For the same relative occupied/unoccupied weighting use cre_gamma=0.83 and recon_scale=6
         """
-        loss = torch.cat([torch.sum(-((gt.mul(self.cre_occupied_factor).mul(torch.log(est))).add((1 - gt).mul(self.cre_empty_factor).mul(torch.log(1 - est))))).mul(self.recon_scale).unsqueeze(0) for est, gt in zip(leaf_est, leaf_gt)], 0)
-        return loss
+        m = np.nonzero(leaf_gt[0, 0])
+        attr_loss = torch.sum(torch.sum(torch.abs(leaf_gt[0, 1:, m[:, 0], m[:, 1], m[:, 2]] - leaf_est[0, 1:, m[:, 0], m[:, 1], m[:, 2]])))
+        occ_loss = torch.cat([torch.sum(-((gt.mul(self.cre_occupied_factor).mul(torch.log(est))).add((1 - gt).mul(self.cre_empty_factor).mul(torch.log(1 - est))))).mul(self.recon_scale).unsqueeze(0) for est, gt in zip(leaf_est[0, :1], leaf_gt[0, :1])], 0)
+        return occ_loss + attr_loss
 
     def _classify_loss_fn(self, class_est, class_gt):
         loss = torch.cat([self.classify_creloss(l_est.unsqueeze(0), l_gt.unsqueeze(0)).unsqueeze(0).mul(self.label_scale) for l_est, l_gt in zip(class_est, class_gt)], 0)
