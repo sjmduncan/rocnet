@@ -108,12 +108,12 @@ def write_file(path: str, data: dict, overwrite_ok: bool = False):
         toml.dump(data, f, encoder=toml.TomlNumpyEncoder())
 
 
-def ensure_file(path: str, default_config: dict):
+def ensure_file(path: str, default_dict: dict):
     """
-    Ensure that TOML config file exists at 'path', that any existing config file matches the schema of 'default_config' (see deep_dict_compare_schema)
-    and will return a dict with default values from 'default_config' in place of any keys missing from the config in the file
+    Ensure that TOML config file exists at 'path', that any existing config file matches the schema of 'default_dict' (see deep_dict_compare_schema)
+    and will return a dict with default values from 'default_dict' in place of any keys missing from the config in the file
     path: path to the expected config file.
-    default_config: dict object with the full default configuration schema."""
+    default_dict: dict object with the full default configuration schema."""
     parent_path, _ = split(path)
     if not exists(parent_path) and not parent_path == "":
         logger.warning(f"Directory does not exist. Creating it: '{parent_path}'")
@@ -121,16 +121,16 @@ def ensure_file(path: str, default_config: dict):
     if not exists(path):
         logger.warning(f"Path does not exist. Creating it: '{path}'")
         with open(path, "x") as file:
-            toml.dump(default_config, file, encoder=toml.TomlNumpyEncoder())
-            return EasyDict(default_config)
+            toml.dump(default_dict, file, encoder=toml.TomlNumpyEncoder())
+            return EasyDict(default_dict)
     else:
         logger.info(f"Loading config file {path}")
         with open(path, "r") as file:
             extant_config = toml.load(file)
-            if not deep_dict_compare_schema(default_config, extant_config):
+            if not deep_dict_compare_schema(default_dict, extant_config):
                 logger.error("Config file does not match the expected structure")
                 raise ValueError("Config file does not match the expected structure")
-            return EasyDict(deep_dict_merge(extant_config, default_config, override=False))
+            return EasyDict(deep_dict_merge(extant_config, default_dict, override=False))
 
 
 def save_file(path: str, data: dict, overwrite: bool):
@@ -141,17 +141,17 @@ def save_file(path: str, data: dict, overwrite: bool):
         toml.dump(data, file, encoder=toml.TomlNumpyEncoder())
 
 
-def load_file(path: str, default_config: dict = None, quiet=False, require_exists=True):
+def load_file(path: str, default_dict: dict = None, quiet=False, require_exists=True):
     if not exists(path):
-        if require_exists or default_config is None:
+        if require_exists or default_dict is None:
             raise FileNotFoundError(f"Path does not exist: '{path}'")
         logger.warning(f"Path does not exist: '{path}'")
-        return EasyDict(default_config)
+        return EasyDict(default_dict)
     else:
         if not quiet:
             logger.info(f"Loading config file {path}")
         with open(path, "r") as file:
-            return EasyDict(deep_dict_merge(toml.load(file), default_config if default_config is not None else {}, override=False))
+            return EasyDict(deep_dict_merge(toml.load(file), default_dict if default_dict is not None else {}, override=False))
 
 
 def get_most_epoch_model(base_path, suffix, require=True, max_epochs=-1):

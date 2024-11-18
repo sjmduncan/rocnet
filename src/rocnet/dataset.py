@@ -65,7 +65,7 @@ def filelist(folder, train=False, max_samples=-1, min_size=-1, file_list=None, r
             all_files = [f for f in all_files if getsize(f) > min_size]
         if max_samples > 0:
             files = random.sample(all_files, min(int(max_samples), len(all_files)))
-            if file_list is not None and not exists(file_list):
+            if file_list is not None and not exists(file_list) and max_samples == len(files):
                 savetxt(file_list, files, fmt="%s")
             return files
         return all_files
@@ -139,15 +139,20 @@ class Dataset(torch.utils.data.Dataset):
 
     def read_files(self, grid_dim, leaf_dim):
         print(f"read_files {len(self.files)}:", end="", flush=True)
+        print_mod = len(self.files) / 10
         if self.metadata.type == "tileset":
-            for f in self.files:
+            for idx,f in enumerate(self.files):
+                if idx % print_mod == 0:
+                    print(idx, flush=True, end=" ")
                 indices = load_npy(f, 1.0 / self.grid_div, grid_dim)
                 indices[:, 3:] = indices[:, 3:] / 256
                 features, labels = points_to_features(indices, grid_dim, leaf_dim, indices.shape[1] - 3)
                 tree = Octree(features.float(), labels.int())
                 self.trees.append(tree)
         else:
-            for f in self.files:
+            for idx,f in enumerate(self.files):
+                if idx % print_mod == 0:
+                    print(idx, flush=True, end=" ")
                 indices = load_laz_as_voxel_indices(f, vox_size=self.metadata.vox_size)
                 features, labels = points_to_features(indices, grid_dim, leaf_dim)
                 tree = Octree(features.float(), labels.int())
