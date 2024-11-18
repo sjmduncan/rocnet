@@ -12,6 +12,7 @@ import torch
 import torch.utils
 from numpy import loadtxt, savetxt
 from tqdm import tqdm
+import math
 
 import rocnet.utils as utils
 from rocnet.octree import Octree, points_to_features
@@ -32,7 +33,7 @@ DEFAULT_METADATA = {
 
 
 def load_npy(file_path, scale, grid_dim):
-    pts = np.load(file_path, allow_pickle=True)
+    pts = np.load(file_path, allow_pickle=True) * scale
     return pts.astype("float32")
 
 
@@ -104,7 +105,7 @@ class Dataset(torch.utils.data.Dataset):
         elif "grid_dim" in self.metadata and self.metadata.grid_dim > model_grid_dim:
             self.grid_div = self.metadata.grid_dim / model_grid_dim
 
-        self.max_samples = max_train_samples if train else max_train_samples * self.metadata["train_fraction"]
+        self.max_samples = max_train_samples if train else int(math.ceil(max_train_samples * self.metadata["train_fraction"]))
 
         if self.metadata.type == "tileset":
             self.__init_tileset(file_list)
@@ -139,14 +140,14 @@ class Dataset(torch.utils.data.Dataset):
     def read_files(self, grid_dim, leaf_dim):
         print(f"read_files {len(self.files)}:", end="", flush=True)
         if self.metadata.type == "tileset":
-            for f in tqdm(self.files):
+            for f in self.files:
                 indices = load_npy(f, 1.0 / self.grid_div, grid_dim)
                 indices[:, 3:] = indices[:, 3:] / 256
                 features, labels = points_to_features(indices, grid_dim, leaf_dim, indices.shape[1] - 3)
                 tree = Octree(features.float(), labels.int())
                 self.trees.append(tree)
         else:
-            for f in tqdm(self.files):
+            for f in self.files:
                 indices = load_laz_as_voxel_indices(f, vox_size=self.metadata.vox_size)
                 features, labels = points_to_features(indices, grid_dim, leaf_dim)
                 tree = Octree(features.float(), labels.int())
