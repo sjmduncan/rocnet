@@ -11,7 +11,7 @@ import toml
 import torch
 import torch.utils
 from numpy import loadtxt, savetxt
-from tqdm import tqdm
+
 import math
 import psutil
 
@@ -142,16 +142,13 @@ class Dataset(torch.utils.data.Dataset):
         """Print the total CPU and GPU memory use while loading data"""
         cumem = torch.cuda.mem_get_info()
         cpumem = psutil.virtual_memory()
-
-        print(f"FILE: {idx}/{total}")
-        print("CUDA: ", cumem, cumem[0]/cumem[1])
-        print(" CPU: ", cpumem, flush=True)
+        logger.info(f"file {idx:>6}/{total}, Free Mem: GPU={100-100*cumem[0]/cumem[1]:4.1f}% of {utils.sizeof_fmt(cumem[1])}, RAM={100-cpumem.percent:4.2f}% of {utils.sizeof_fmt(cpumem.total)}")
 
     def read_files(self, grid_dim, leaf_dim):
-        print(f"read_files {len(self.files)}:", end="", flush=True)
+        logger.info(f"read_files {len(self.files)}")
         print_mod = len(self.files) / 10
         if self.metadata.type == "tileset":
-            for idx,f in enumerate(self.files):
+            for idx, f in enumerate(self.files):
                 if idx % print_mod == 0:
                     self._load_resourceutilization(idx, len(self.files))
                 indices = load_npy(f, 1.0 / self.grid_div, grid_dim)
@@ -160,7 +157,7 @@ class Dataset(torch.utils.data.Dataset):
                 tree = Octree(features.float(), labels.int())
                 self.trees.append(tree)
         else:
-            for idx,f in enumerate(self.files):
+            for idx, f in enumerate(self.files):
                 if idx % print_mod == 0:
                     self._load_resourceutilization(idx, len(self.files))
                 indices = load_laz_as_voxel_indices(f, vox_size=self.metadata.vox_size)
