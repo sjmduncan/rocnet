@@ -60,12 +60,12 @@ class _RootEncoder(nn.Module):
 class _LeafEncoder(nn.Module):
     """This encodes non-empty leaf nodes"""
 
-    def __init__(self, leaf_dim: int, voxel_channels: int = 1, node_channels: int = 64):
+    def __init__(self, leaf_dim: int, voxel_channels: int = 0, node_channels: int = 64):
         super().__init__()
 
         self._layer_ks, self._layer_ss, self._layer_ps = _leaf_layer_sizes(leaf_dim, True)
 
-        self.conv1 = nn.Conv3d(voxel_channels, 16, kernel_size=self._layer_ks[0], stride=self._layer_ss[0], padding=self._layer_ps[0], bias=False)
+        self.conv1 = nn.Conv3d(voxel_channels + 1, 16, kernel_size=self._layer_ks[0], stride=self._layer_ss[0], padding=self._layer_ps[0], bias=False)
         self.bn1 = nn.BatchNorm3d(16, track_running_stats=False)
         self.conv2 = nn.Conv3d(16, 32, kernel_size=self._layer_ks[1], stride=self._layer_ss[1], padding=self._layer_ps[1], bias=False)
         self.bn2 = nn.BatchNorm3d(32, track_running_stats=False)
@@ -279,7 +279,7 @@ class _NodeDecoder(nn.Module):
 
 
 class _LeafDecoder(nn.Module):
-    def __init__(self, leaf_dim: int, voxel_channels: int = 1, node_channels: int = 64):
+    def __init__(self, leaf_dim: int, voxel_channels: int = 0, node_channels: int = 64):
         super().__init__()
 
         self._layer_ks, self._layer_ss, self._layer_ps = _leaf_layer_sizes(leaf_dim, False)
@@ -288,7 +288,7 @@ class _LeafDecoder(nn.Module):
         self.bn2 = nn.BatchNorm3d(32, track_running_stats=False)
         self.deconv3 = nn.ConvTranspose3d(32, 16, kernel_size=self._layer_ks[1], stride=self._layer_ss[1], padding=self._layer_ps[1], bias=False)
         self.bn3 = nn.BatchNorm3d(16, track_running_stats=False)
-        self.deconv4 = nn.ConvTranspose3d(16, voxel_channels, kernel_size=self._layer_ks[2], stride=self._layer_ss[2], padding=self._layer_ps[2], bias=False)
+        self.deconv4 = nn.ConvTranspose3d(16, voxel_channels + 1, kernel_size=self._layer_ks[2], stride=self._layer_ss[2], padding=self._layer_ps[2], bias=False)
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.ELU()
 
@@ -368,7 +368,7 @@ class Decoder(nn.Module):
 
             if label == 3 and d > len(self.node_decoders):
                 print("Leaf classifier got it wrong for a leaf node. Giving you a fully occupied leaf instead")
-                leaf_features.extend(torch.ones([self.leaf_dim, self.leaf_dim, self.leaf_dim]).unsqueeze(0).unsqueeze(0))
+                leaf_features.append(torch.ones([self.cfg.voxel_channels + 1, self.leaf_dim, self.leaf_dim, self.leaf_dim]).unsqueeze(0))
                 label = np.array([0])
             elif label == 3:  # NON-LEAF
                 children = self.node_decoders[d - 1](f)
@@ -377,7 +377,7 @@ class Decoder(nn.Module):
                 depth = depth + [d + 1 for _ in range(8)]
             else:  # LEAF
                 reBox = self.leaf_decoder(f)
-                leaf_features.extend(reBox)
+                leaf_features.append(reBox)
 
             node_types.append(label)
         node_types_sorted_tensor = np.squeeze(np.flip(np.array(node_types)))
@@ -394,7 +394,7 @@ class Decoder(nn.Module):
         For the same relative occupied/unoccupied weighting use cre_gamma=0.83 and recon_scale=6
         """
         m = np.nonzero(leaf_gt[0, 0])
-        attr_loss = torch.sum(torch.sum(torch.abs(leaf_gt[0, 1:, m[:, 0], m[:, 1], m[:, 2]] - leaf_est[0, 1:, m[:, 0], m[:, 1], m[:, 2]])))
+        attr_loss = 10 * torch.sum(torch.sum(torch.abs(leaf_gt[0, 1:, m[:, 0], m[:, 1], m[:, 2]] - leaf_est[0, 1:, m[:, 0], m[:, 1], m[:, 2]]))) / m.shape[0]
         occ_loss = torch.cat([torch.sum(-((gt.mul(self.cre_occupied_factor).mul(torch.log(est))).add((1 - gt).mul(self.cre_empty_factor).mul(torch.log(1 - est))))).mul(self.recon_scale).unsqueeze(0) for est, gt in zip(leaf_est[0, :1], leaf_gt[0, :1])], 0)
         return occ_loss + attr_loss
 

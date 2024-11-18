@@ -72,7 +72,7 @@ def features_to_points(leaf_features, node_types, grid_dim: int, channels: int =
             return np.array([]).reshape(-1, 3 + channels), node_types[:-1], leaf_features[:-1, :, :, :]
         elif node_types[-1] == Octree.NodeType.LEAF_MIX.value:
             pts = np.nonzero(leaf_features[-1].cpu()[0, :, :, :] > 0.5)
-            pts = torch.cat([pts + origin, leaf_features[-1][1:, pts[:, 0], pts[:, 1], pts[:, 2]].T], 1)
+            pts = torch.cat([pts + origin, leaf_features[-1][1:, pts[:, 0], pts[:, 1], pts[:, 2]].T.cpu()], 1)
             return pts, node_types[:-1], leaf_features[:-1, :, :, :]
         else:
             octant_dim = dim // 2

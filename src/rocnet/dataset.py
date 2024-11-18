@@ -24,6 +24,7 @@ DEFAULT_METADATA = {
     "recurse": False,
     "grid_dim": 64,
     "vox_size": 1.0,
+    "train_fraction": 0.85,
     "vox_attrib": "RGB",
     "files_in": [["", ""]],
     "transforms": [[], []],
@@ -81,7 +82,7 @@ def write_metadata(out_dir: str, meta: dict):
 class Dataset(torch.utils.data.Dataset):
     """Access a collection of Octrees as a torch dataset"""
 
-    def __init__(self, folder: str, model_grid_dim: int, train=True, max_samples: int = None, file_list: str = None):
+    def __init__(self, folder: str, model_grid_dim: int, train=True, max_train_samples: int = None, file_list: str = None):
         """Parse dataset metadata without loading all the files into memory (use read_files for thta)
 
         folder: folder containing meta.toml and/or train/ and test/ subfolders
@@ -97,12 +98,13 @@ class Dataset(torch.utils.data.Dataset):
         self.grid_div = 1.0
         self.folder = folder
         self.train = train
-        self.max_samples = max_samples
         self.metadata = utils.ensure_file(join(folder, "meta.toml"), DEFAULT_METADATA)  # , True, True)
         if "grid_dim" in self.metadata and self.metadata.grid_dim < model_grid_dim:
             raise ValueError(f"Dataset grid_dim check failed: expected dataset.grid_dim <= model.grid_dim (found dataset.grid_dim={self.metadata.grid_dim}, model.grid_dim={model_grid_dim})")
         elif "grid_dim" in self.metadata and self.metadata.grid_dim > model_grid_dim:
             self.grid_div = self.metadata.grid_dim / model_grid_dim
+
+        self.max_samples = max_train_samples if train else max_train_samples * self.metadata["train_fraction"]
 
         if self.metadata.type == "tileset":
             self.__init_tileset(file_list)

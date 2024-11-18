@@ -66,13 +66,14 @@ class RocNet:
             logger.error(f"leaf_dim={self.cfg.leaf_dim} should be a power of two and less than grid_dim={self.cfg.grid_dim}")
 
     def compress_points(self, pointcloud):
-        leaf_features, node_types = points_to_features(pointcloud, self.cfg.grid_dim, self.cfg.leaf_dim)
+        leaf_features, node_types = points_to_features(pointcloud, self.cfg.grid_dim, self.cfg.leaf_dim, self.cfg.voxel_channels)
         tree = Octree(leaf_features, node_types)
-        return self.encoder.encode_tree(tree)
+        code = self.encoder.encode_tree(tree)
+        return code.squeeze()
 
     def uncompress_points(self, vector):
         leaf_features, node_types = self.decoder.decode_tree(torch.Tensor(vector.reshape(1, self.decoder.cfg.feature_code_size)).cuda())
-        points = features_to_points(leaf_features, node_types, self.cfg.grid_dim, self.cfg.leaf_dim)
+        points = features_to_points(leaf_features, node_types, self.cfg.grid_dim, self.cfg.voxel_channels)
         return points
 
     def train(self):
