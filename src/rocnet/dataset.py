@@ -13,6 +13,7 @@ import torch.utils
 from numpy import loadtxt, savetxt
 from tqdm import tqdm
 import math
+import psutil
 
 import rocnet.utils as utils
 from rocnet.octree import Octree, points_to_features
@@ -137,13 +138,22 @@ class Dataset(torch.utils.data.Dataset):
     def load(self, grid_dim, leaf_dim):
         self.read_files(grid_dim, leaf_dim)
 
+    def _load_resourceutilization(self, idx, total):
+        """Print the total CPU and GPU memory use while loading data"""
+        cumem = torch.cuda.mem_get_info()
+        cpumem = psutil.virtual_memory()
+
+        print(f"FILE: {idx}/{total}")
+        print("CUDA: ", cumem, cumem[0]/cumem[1])
+        print(" CPU: ", cpumem, flush=True)
+
     def read_files(self, grid_dim, leaf_dim):
         print(f"read_files {len(self.files)}:", end="", flush=True)
         print_mod = len(self.files) / 10
         if self.metadata.type == "tileset":
             for idx,f in enumerate(self.files):
                 if idx % print_mod == 0:
-                    print(idx, flush=True, end=" ")
+                    self._load_resourceutilization(idx, len(self.files))
                 indices = load_npy(f, 1.0 / self.grid_div, grid_dim)
                 indices[:, 3:] = indices[:, 3:] / 256
                 features, labels = points_to_features(indices, grid_dim, leaf_dim, indices.shape[1] - 3)
@@ -152,7 +162,7 @@ class Dataset(torch.utils.data.Dataset):
         else:
             for idx,f in enumerate(self.files):
                 if idx % print_mod == 0:
-                    print(idx, flush=True, end=" ")
+                    self._load_resourceutilization(idx, len(self.files))
                 indices = load_laz_as_voxel_indices(f, vox_size=self.metadata.vox_size)
                 features, labels = points_to_features(indices, grid_dim, leaf_dim)
                 tree = Octree(features.float(), labels.int())
