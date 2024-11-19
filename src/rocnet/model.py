@@ -340,6 +340,7 @@ class Decoder(nn.Module):
         self.grid_dim = cfg.grid_dim
 
         self.classify_creloss = nn.CrossEntropyLoss()
+        self.recon_loss = self._recon_loss_occupancy if cfg.voxel_channels == 0 else self._recon_loss_color
         self.label_scale = cfg.loss_params.label_scale
         self.recon_scale = 1.0 / (self.leaf_dim * self.leaf_dim)
         self.cre_occupied_factor = cfg.loss_params.recon_cre_gamma * cfg.loss_params.recon_cre_scale
@@ -384,7 +385,19 @@ class Decoder(nn.Module):
         features_tensor = torch.flip(torch.cat(leaf_features, 0), [0])
         return features_tensor, node_types_sorted_tensor
 
-    def _recon_loss_fn(self, leaf_est, leaf_gt):
+    def _recon_loss_occupancy(self, leaf_est, leaf_gt):
+        """Binary cross-entropy loss similar to that formulated by Brock2016
+
+        self.cre_gamma corresponds to the gamma factor in Brock2016, however target/observed values remain on the [0..1] range.
+        self.cre_scale normalizes the loss  value to the number of voxels in a leaf block.
+
+        The Liu2020 implementation originally scaled the 'occupied' half by 5 and then scaled the total score by 0.001.
+        For the same relative occupied/unoccupied weighting use cre_gamma=0.83 and recon_scale=6
+        """
+        occ_loss = torch.cat([torch.sum(-((gt.mul(self.cre_occupied_factor).mul(torch.log(est))).add((1 - gt).mul(self.cre_empty_factor).mul(torch.log(1 - est))))).mul(self.recon_scale).unsqueeze(0) for est, gt in zip(leaf_est[0, :1], leaf_gt[0, :1])], 0)
+        return occ_loss
+
+    def _recon_loss_color(self, leaf_est, leaf_gt):
         """Binary cross-entropy loss similar to that formulated by Brock2016
 
         self.cre_gamma corresponds to the gamma factor in Brock2016, however target/observed values remain on the [0..1] range.
@@ -420,7 +433,7 @@ class Decoder(nn.Module):
                     return torch.tensor([0.0], device="cuda", requires_grad=False), label_loss
                 else:
                     fea = self.leaf_decoder(est)
-                    recon_loss = self._recon_loss_fn(fea, tgt.leaf_feature.cuda())
+                    recon_loss = self.recon_loss(fea, tgt.leaf_feature.cuda())
                     return recon_loss, label_loss
             else:  # Non-leaf node
                 children = self.node_decoders[l](est)

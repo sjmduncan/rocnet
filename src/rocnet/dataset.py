@@ -142,7 +142,7 @@ class Dataset(torch.utils.data.Dataset):
         """Print the total CPU and GPU memory use while loading data"""
         cumem = torch.cuda.mem_get_info()
         cpumem = psutil.virtual_memory()
-        logger.info(f"file {idx:>6}/{total}, Free Mem: GPU={100-100*cumem[0]/cumem[1]:4.1f}% of {utils.sizeof_fmt(cumem[1])}, RAM={100-cpumem.percent:4.2f}% of {utils.sizeof_fmt(cpumem.total)}")
+        logger.info(f"file {idx:>6}/{total}, Free Mem: GPU={100*cumem[0]/cumem[1]:4.1f}% of {utils.sizeof_fmt(cumem[1])}, RAM={100-cpumem.percent:4.2f}% of {utils.sizeof_fmt(cpumem.total)}")
 
     def read_files(self, grid_dim, leaf_dim):
         logger.info(f"read_files {len(self.files)}")
