@@ -7,9 +7,9 @@ import sys
 
 import torch
 
-from rocnet.octree import Octree, features_to_points, points_to_features
 import rocnet.utils as utils
 from rocnet import model as model
+from rocnet.octree import Octree, features_to_points, points_to_features
 
 logger = logging.getLogger(__name__)
 log_handler_stdout = logging.StreamHandler(sys.stdout)

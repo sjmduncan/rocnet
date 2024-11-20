@@ -9,7 +9,9 @@ from os import makedirs
 from os.path import exists, join, normpath, split
 
 import numpy as np
+import psutil
 import toml
+import torch
 from easydict import EasyDict
 
 logger = logging.getLogger(__name__)
@@ -124,7 +126,6 @@ def ensure_file(path: str, default_dict: dict):
             toml.dump(default_dict, file, encoder=toml.TomlNumpyEncoder())
             return EasyDict(default_dict)
     else:
-        logger.info(f"Loading config file {path}")
         with open(path, "r") as file:
             extant_config = toml.load(file)
             if not deep_dict_compare_schema(default_dict, extant_config):
@@ -148,8 +149,6 @@ def load_file(path: str, default_dict: dict = None, quiet=False, require_exists=
         logger.warning(f"Path does not exist: '{path}'")
         return EasyDict(default_dict)
     else:
-        if not quiet:
-            logger.info(f"Loading config file {path}")
         with open(path, "r") as file:
             return EasyDict(deep_dict_merge(toml.load(file), default_dict if default_dict is not None else {}, override=False))
 
@@ -162,7 +161,7 @@ def get_most_epoch_model(base_path, suffix, require=True, max_epochs=-1):
         epochs = [e for e in epochs if e <= max_epochs]
     if epochs == [] and require:
         msg = f"Model required but file not found (max_epoch={max_epochs}), glob='{base_path}*{suffix}'"
-        logger.info(msg)
+        logger.error(msg)
         raise FileNotFoundError(msg)
     if epochs == []:
         return 0, f"{join(split(base_path)[0], 'model.toml')}"
@@ -255,3 +254,13 @@ def td_to_txt(tdiff):
 def td_txt(t0, t1):
     d = td_to_txt(t1 - t0)
     return f"{d.d}-{d.h:02}:{d.m:02}:{d.s:02}"
+
+
+def _load_resourceutilization(idx, total):
+    """Print the total CPU and GPU memory use while loading data"""
+    cu = torch.cuda.mem_get_info()
+    ram = psutil.virtual_memory()
+    proc = psutil.Process()
+
+    logger.info(f"file {idx:>6}/{total}, Free Mem: GPU={100*cu[0]/cu[1]:4.1f}% of {sizeof_fmt(cu[1])}, RAM={100-ram.percent:4.2f}% of {sizeof_fmt(ram.total)}")
+    logger.info(f"file {idx:>6}/{total}, Mem Usage: GPU=, CPU={sizeof_fmt(proc.memory_info().rss)}")

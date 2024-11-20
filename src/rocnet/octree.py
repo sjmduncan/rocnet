@@ -1,7 +1,13 @@
+import logging
+import sys
 from enum import Enum
 
-import torch
 import numpy as np
+import torch
+
+logger = logging.getLogger(__name__)
+log_handler_stdout = logging.StreamHandler(sys.stdout)
+logger.addHandler(log_handler_stdout)
 
 
 def points_to_features(occupied_indices, grid_dim: int, leaf_dim: int, channels: int = 0):

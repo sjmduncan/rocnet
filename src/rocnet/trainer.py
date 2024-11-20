@@ -158,7 +158,7 @@ class Trainer:
                     valid_losses = valid_losses + full_losses.cpu().tolist()
             self.model.train()
             do_snapshot = (self.cfg.snapshot.enabled and (epoch + 1) % self.cfg.snapshot.interval == 0) or (epoch + 1) == self.cfg.max_epochs
-            stopping = epoch_callback(epoch, self.cfg.max_epochs, train_losses, valid_losses, do_snapshot)
+            stopping = epoch_callback(epoch, self.cfg.max_epochs, train_losses, valid_losses)
 
             epoch_loss = concatenate([[epoch], [self.encoder_opt.param_groups[0]["lr"]], average(train_losses, axis=0), average(valid_losses, axis=0)])
 

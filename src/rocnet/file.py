@@ -4,7 +4,7 @@ import os
 import struct
 import sys
 from io import BufferedReader, BufferedWriter
-from os.path import exists, join, split
+from os.path import exists
 from pathlib import Path
 
 import numpy as np

@@ -2,7 +2,9 @@
 
 import glob
 import logging
+import math
 import random
+import sys
 from os.path import exists, getsize, join, splitext
 
 import laspy as lp
@@ -12,13 +14,12 @@ import torch
 import torch.utils
 from numpy import loadtxt, savetxt
 
-import math
-import psutil
-
 import rocnet.utils as utils
 from rocnet.octree import Octree, points_to_features
 
 logger = logging.getLogger(__name__)
+log_handler_stdout = logging.StreamHandler(sys.stdout)
+logger.addHandler(log_handler_stdout)
 
 DEFAULT_METADATA = {
     "type": "tileset",
@@ -100,13 +101,21 @@ class Dataset(torch.utils.data.Dataset):
         self.grid_div = 1.0
         self.folder = folder
         self.train = train
+        logger.info(f"Loading dataset metadata file: {join(folder, 'meta.toml')}, train={train}")
         self.metadata = utils.ensure_file(join(folder, "meta.toml"), DEFAULT_METADATA)  # , True, True)
         if "grid_dim" in self.metadata and self.metadata.grid_dim < model_grid_dim:
             raise ValueError(f"Dataset grid_dim check failed: expected dataset.grid_dim <= model.grid_dim (found dataset.grid_dim={self.metadata.grid_dim}, model.grid_dim={model_grid_dim})")
         elif "grid_dim" in self.metadata and self.metadata.grid_dim > model_grid_dim:
             self.grid_div = self.metadata.grid_dim / model_grid_dim
 
-        self.max_samples = max_train_samples if train else int(math.ceil(max_train_samples * self.metadata["train_fraction"]))
+        logger.info(f"grid_div={self.grid_div}")
+
+        if train:
+            self.max_train_samples = max_train_samples
+        else:
+            self.max_train_samples = int(math.ceil(max_train_samples * self.metadata["train_fraction"]))
+            logger.info(f"train={train}: calculating max_samples=math.ceil(max_train_samples * train_fraction)=math.ceil({max_train_samples} * {self.metadata['train_fraction']})")
+        logger.info(f"max_train_samples={self.max_train_samples}")
 
         if self.metadata.type == "tileset":
             self.__init_tileset(file_list)
@@ -121,7 +130,8 @@ class Dataset(torch.utils.data.Dataset):
         """Initialise a dataset consisting of tiles divided into train/ and test subsets"""
         self.midfix = "train" if self.train else "test"
         self.prefix = join(self.folder, self.midfix)
-        self.files = filelist(self.folder, self.train, self.max_samples, recurse=self.metadata.recurse if "recurse" in self.metadata else False, file_list=file_list)
+        self.files = filelist(self.folder, self.train, self.max_train_samples, recurse=self.metadata.recurse if "recurse" in self.metadata else False, file_list=file_list)
+        logger.info(f"Init 'tileset' dataset with {len(self.files)} files {self.prefix}")
 
     def __init_lazset(self):
         """Initialise a dataset consisting of a set of .laz files with train/test subsets defined in meta.toml
@@ -130,27 +140,22 @@ class Dataset(torch.utils.data.Dataset):
         """
         self.midfix = "train" if self.train else "test"
         self.prefix = join(self.folder, self.midfix)
-        if self.max_samples is not None:
-            self.files = utils.ensure_file(join(self.folder, "file_lists.toml"), {"train": [], "test": []})[self.midfix][: self.max_samples]
+        if self.max_train_samples is not None:
+            self.files = utils.ensure_file(join(self.folder, "file_lists.toml"), {"train": [], "test": []})[self.midfix][: self.max_train_samples]
         else:
             self.files = utils.ensure_file(join(self.folder, "file_lists.toml"), {"train": [], "test": []})[self.midfix]
+        logger.info(f"Init 'lazset' dataset with {len(self.files)} files {self.prefix}")
 
     def load(self, grid_dim, leaf_dim):
         self.read_files(grid_dim, leaf_dim)
 
-    def _load_resourceutilization(self, idx, total):
-        """Print the total CPU and GPU memory use while loading data"""
-        cumem = torch.cuda.mem_get_info()
-        cpumem = psutil.virtual_memory()
-        logger.info(f"file {idx:>6}/{total}, Free Mem: GPU={100*cumem[0]/cumem[1]:4.1f}% of {utils.sizeof_fmt(cumem[1])}, RAM={100-cpumem.percent:4.2f}% of {utils.sizeof_fmt(cpumem.total)}")
-
     def read_files(self, grid_dim, leaf_dim):
-        logger.info(f"read_files {len(self.files)}")
-        print_mod = len(self.files) / 10
+        logger.info(f"Loading {len(self.files)} files")
+        print_mod = int(len(self.files) / 10) + 1
         if self.metadata.type == "tileset":
             for idx, f in enumerate(self.files):
                 if idx % print_mod == 0:
-                    self._load_resourceutilization(idx, len(self.files))
+                    utils._load_resourceutilization(idx, len(self.files))
                 indices = load_npy(f, 1.0 / self.grid_div, grid_dim)
                 indices[:, 3:] = indices[:, 3:] / 256
                 features, labels = points_to_features(indices, grid_dim, leaf_dim, indices.shape[1] - 3)
@@ -159,7 +164,7 @@ class Dataset(torch.utils.data.Dataset):
         else:
             for idx, f in enumerate(self.files):
                 if idx % print_mod == 0:
-                    self._load_resourceutilization(idx, len(self.files))
+                    utils._load_resourceutilization(idx, len(self.files))
                 indices = load_laz_as_voxel_indices(f, vox_size=self.metadata.vox_size)
                 features, labels = points_to_features(indices, grid_dim, leaf_dim)
                 tree = Octree(features.float(), labels.int())

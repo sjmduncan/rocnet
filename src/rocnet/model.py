@@ -1,5 +1,7 @@
 """Recursive NN for compressing voxel grids"""
 
+import logging
+import sys
 from math import log2
 
 import numpy as np
@@ -8,6 +10,10 @@ from torch import nn
 from torch.autograd import Variable
 
 from rocnet.octree import Octree
+
+logger = logging.getLogger(__name__)
+log_handler_stdout = logging.StreamHandler(sys.stdout)
+logger.addHandler(log_handler_stdout)
 
 
 def _leaf_layer_sizes(leaf_dim: int, is_encoder: bool):
@@ -36,7 +42,7 @@ def _check_params(grid_dim: int, leaf_dim: int, feature_code_size: int):
     """Check whether grid_dim, leaf_dim, and feature_code_size are valid values"""
     assert grid_dim in [64, 128, 256, 512, 1024, 2048]
     assert leaf_dim in [16, 32]
-    assert feature_code_size > 0 and feature_code_size <= 4096
+    assert feature_code_size > 0 and feature_code_size <= 8192
 
 
 class _RootEncoder(nn.Module):
