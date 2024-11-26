@@ -70,7 +70,7 @@ def points_to_features(occupied_indices, grid_dim: int, leaf_dim: int, channels:
     return torch.stack(leaf_features).type(torch.float32), node_types
 
 
-def features_to_points(leaf_features, node_types, grid_dim: int, channels: int = 1):
+def features_to_points(leaf_features, node_types, grid_dim: int, channels: int):
     """Decode a list of node features/types directly to a list of indices, allocating memory only for occupied leaves rather than all grid_dim^3 voxels"""
 
     def sub_features_to_points(leaf_features, node_types, dim, origin):
@@ -79,6 +79,11 @@ def features_to_points(leaf_features, node_types, grid_dim: int, channels: int =
         elif node_types[-1] == Octree.NodeType.LEAF_MIX.value:
             pts = np.nonzero(leaf_features[-1].cpu()[0, :, :, :] > 0.5)
             pts = torch.cat([pts + origin, leaf_features[-1][1:, pts[:, 0], pts[:, 1], pts[:, 2]].T.cpu()], 1)
+            return pts, node_types[:-1], leaf_features[:-1, :, :, :]
+        elif node_types[-1] == Octree.NodeType.LEAF_FULL.value:
+            pts = np.array(np.nonzero(np.ones([32, 32, 32]))).T + origin
+            if channels > 0:
+                pts = np.concatenate([pts, np.zeros([pts.shape[0], channels])], axis=1)
             return pts, node_types[:-1], leaf_features[:-1, :, :, :]
         else:
             octant_dim = dim // 2

@@ -108,7 +108,7 @@ class RocNetFile:
 
         tileset = pc_to_tiles(pts, vox_size, self._model.cfg.grid_dim)
 
-        codes = [self._model.compress_points(t[1]) for t in tileset]
+        codes = [self._model.compress_points(t[1]).cpu() for t in tileset]
 
         origins = [t[0] for t in tileset]
         with open(path_out, "xb") as f:

@@ -374,8 +374,8 @@ class Decoder(nn.Module):
             label = label.data.cpu().numpy()
 
             if label == 3 and d > len(self.node_decoders):
-                print("Leaf classifier got it wrong for a leaf node. Giving you a fully occupied leaf instead")
-                leaf_features.append(torch.ones([self.cfg.voxel_channels + 1, self.leaf_dim, self.leaf_dim, self.leaf_dim]).unsqueeze(0))
+                logger.warning("Leaf classifier got it wrong for a leaf node. Giving you a fully occupied leaf instead")
+                leaf_features.append(torch.ones([self.cfg.voxel_channels + 1, self.leaf_dim, self.leaf_dim, self.leaf_dim]).unsqueeze(0).cuda())
                 label = np.array([0])
             elif label == 3:  # NON-LEAF
                 children = self.node_decoders[d - 1](f)
