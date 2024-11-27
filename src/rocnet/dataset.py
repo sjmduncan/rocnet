@@ -110,12 +110,8 @@ class Dataset(torch.utils.data.Dataset):
 
         logger.info(f"grid_div={self.grid_div}")
 
-        if train:
-            self.max_train_samples = max_train_samples
-        else:
-            self.max_train_samples = int(math.ceil(max_train_samples * self.metadata["train_fraction"]))
-            logger.info(f"train={train}: calculating max_samples=math.ceil(max_train_samples * train_fraction)=math.ceil({max_train_samples} * {self.metadata['train_fraction']})")
-        logger.info(f"max_train_samples={self.max_train_samples}")
+        self.max_samples = max_train_samples
+        logger.info(f"max_samples={self.max_samples}")
 
         if self.metadata.type == "tileset":
             self.__init_tileset(file_list)
@@ -130,7 +126,7 @@ class Dataset(torch.utils.data.Dataset):
         """Initialise a dataset consisting of tiles divided into train/ and test subsets"""
         self.midfix = "train" if self.train else "test"
         self.prefix = join(self.folder, self.midfix)
-        self.files = filelist(self.folder, self.train, self.max_train_samples, recurse=self.metadata.recurse if "recurse" in self.metadata else False, file_list=file_list)
+        self.files = filelist(self.folder, self.train, self.max_samples, recurse=self.metadata.recurse if "recurse" in self.metadata else False, file_list=file_list)
         logger.info(f"Init 'tileset' dataset with {len(self.files)} files {self.prefix}")
 
     def __init_lazset(self):
@@ -140,8 +136,8 @@ class Dataset(torch.utils.data.Dataset):
         """
         self.midfix = "train" if self.train else "test"
         self.prefix = join(self.folder, self.midfix)
-        if self.max_train_samples is not None:
-            self.files = utils.ensure_file(join(self.folder, "file_lists.toml"), {"train": [], "test": []})[self.midfix][: self.max_train_samples]
+        if self.max_samples is not None:
+            self.files = utils.ensure_file(join(self.folder, "file_lists.toml"), {"train": [], "test": []})[self.midfix][: self.max_samples]
         else:
             self.files = utils.ensure_file(join(self.folder, "file_lists.toml"), {"train": [], "test": []})[self.midfix]
         logger.info(f"Init 'lazset' dataset with {len(self.files)} files {self.prefix}")
