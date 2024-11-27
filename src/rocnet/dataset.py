@@ -85,7 +85,7 @@ def write_metadata(out_dir: str, meta: dict):
 class Dataset(torch.utils.data.Dataset):
     """Access a collection of Octrees as a torch dataset"""
 
-    def __init__(self, folder: str, model_grid_dim: int, train=True, max_train_samples: int = None, file_list: str = None):
+    def __init__(self, folder: str, model_grid_dim: int, train=True, max_samples: int = None, file_list: str = None):
         """Parse dataset metadata without loading all the files into memory (use read_files for thta)
 
         folder: folder containing meta.toml and/or train/ and test/ subfolders
@@ -110,7 +110,7 @@ class Dataset(torch.utils.data.Dataset):
 
         logger.info(f"grid_div={self.grid_div}")
 
-        self.max_samples = max_train_samples
+        self.max_samples = max_samples
         logger.info(f"max_samples={self.max_samples}")
 
         if self.metadata.type == "tileset":
