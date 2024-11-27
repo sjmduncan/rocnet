@@ -69,6 +69,7 @@ class Trainer:
         valid_dataset.load(model.cfg.grid_dim, model.cfg.leaf_dim)
 
         model.train()
+        self.start_epoch = 0
         self.encoder_opt = torch.optim.Adam(model.encoder.parameters(), cfg.learning.lr_init)
         self.encoder_sched_warmup = torch.optim.lr_scheduler.LinearLR(self.encoder_opt, start_factor=cfg.learning.lr_warmup / cfg.learning.lr_init, total_iters=cfg.learning.warmup_epochs)
         self.encoder_sched_exp = torch.optim.lr_scheduler.ExponentialLR(self.encoder_opt, gamma=cfg.learning.exp_gamma)
@@ -98,6 +99,9 @@ class Trainer:
         self.decoder_opt.load_state_dict(state_dict["decoder_optimiser"])
         self.encoder_opt.load_state_dict(state_dict["encoder_optimiser"])
         self.loss_per_epoch = loadtxt(f"{base_path}_loss.csv")
+        self.model.load(f"{base_path}.pth")
+        self.model.encoder.cuda()
+        self.model.decoder.cuda()
 
     def save_snapshot_prev(self, base_path: str, dicts: dict, metadata: dict):
         self.model.save(f"{base_path}.pth", metadata, save_prev_snapshot=True, best_so_far=True)
@@ -127,7 +131,7 @@ class Trainer:
         last_was_min = False
         this_is_min = False
         last_epoch_time = datetime.now()
-        for epoch in range(self.cfg.max_epochs):
+        for epoch in range(self.start_epoch, self.cfg.max_epochs):
             logger.info(f"{epoch+1:4}/{self.cfg.max_epochs:<5} LR={self.encoder_opt.param_groups[0]['lr']:<12.10f} ({split(split(self.out_dir)[0])[1]})")
             #################### Training
             train_losses = []

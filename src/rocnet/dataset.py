@@ -2,7 +2,6 @@
 
 import glob
 import logging
-import math
 import random
 import sys
 from os.path import exists, getsize, join, splitext
