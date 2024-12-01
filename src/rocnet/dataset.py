@@ -108,7 +108,8 @@ class Dataset(torch.utils.data.Dataset):
             self.grid_div = self.metadata.grid_dim / model_grid_dim
 
         logger.info(f"grid_div={self.grid_div}")
-
+        assert isinstance(max_samples, int), "max_samples should be integer type"
+        assert max_samples > 0, "max_samples should be greater than zero"
         self.max_samples = max_samples
         logger.info(f"max_samples={self.max_samples}")
 
