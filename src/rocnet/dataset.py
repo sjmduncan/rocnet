@@ -27,9 +27,7 @@ DEFAULT_METADATA = {
     "grid_dim": 64,
     "vox_size": 1.0,
     "train_fraction": 0.85,
-    "vox_attrib": "RGB",
-    "files_in": [["", ""]],
-    "transforms": [[], []],
+    "vox_attrib": "RGB"
 }
 
 

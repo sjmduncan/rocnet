@@ -19,14 +19,13 @@ TIME_FMT = "%Y-%m-%d_%H.%M.%S"
 START_TIME = datetime.now().strftime(TIME_FMT)
 
 DEFAULT_CONFIG = {
-    "note": "",
     "dataset_path": "../rocnet.data/test",
     "max_samples": -1,
-    "max_epochs": 300,  # Default from liu2022
-    "batch_size": 50,  # Default from liu2022
+    "max_epochs": 300,
+    "batch_size": 50,
     "verbose": False,
     "use_torchfold": False,
-    "validation": {  # Validation runs on the test dataset
+    "validation": {
         "stop_threshold": 5,
         "min_stop_epochs": 30,
     },

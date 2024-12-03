@@ -16,7 +16,6 @@ log_handler_stdout = logging.StreamHandler(sys.stdout)
 logger.addHandler(log_handler_stdout)
 
 DEFAULT_CONFIG = {
-    "note": "",
     "feature_code_size": 80,
     "voxel_channels": 1,
     "classifier_hidden_size": 200,
