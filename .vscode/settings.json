@@ -14,5 +14,4 @@
   "ruff.nativeServer": "on",
   "editor.indentSize": "tabSize",
   "editor.tabSize": 2,
-  "workbench.colorTheme": "Visual Studio Light",
 }
