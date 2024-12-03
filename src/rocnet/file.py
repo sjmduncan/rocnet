@@ -27,8 +27,8 @@ def pc_to_tiles(pts: np.array, vox_size: float, tile_grid_dim: int):
     tile_grid_dim: size of each tile in voxels, must be 64, 128, or 256
     shift: shift: 3D shift vector to apply to the voxel grid before tiling, array of int
     returns: list(corners, tiles)
-              corners - grid indices of the bottom-left corners of the tiles (array, dtype=int)
-              tiles - indices of occupied voxels for this tile (array dtype=uint8)
+    corners - grid indices of the bottom-left corners of the tiles (array, dtype=int)
+    tiles - indices of occupied voxels for this tile (array dtype=uint8)
     """
     assert tile_grid_dim in [64, 128, 256]
     grid_pts = np.unique((pts // vox_size).astype(int), axis=0)

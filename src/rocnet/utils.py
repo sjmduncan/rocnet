@@ -2,13 +2,11 @@
 
 import collections
 import copy
-import glob
 import logging
 import sys
 from os import makedirs
-from os.path import exists, join, normpath, split
+from os.path import exists, split
 
-import numpy as np
 import psutil
 import toml
 import torch
@@ -60,7 +58,7 @@ def deep_dict_compare_schema(schema: dict, extant: dict):
       if lists are the same size --> all elements must match types
       if lists are diff sizes    --> all elements of the shorter list must match types in the sublist of the longer one
 
-    int/flouat
+    int/float
       schema:float, extant:int   --> True  (type promotion)
       schema:int, extant:float   --> False (avoids loss of precision)
 
@@ -101,13 +99,6 @@ def deep_dict_compare_schema_values(ref, extant):
         return schema == extant
 
     return _compare_values(ref, extant)
-
-
-def write_file(path: str, data: dict, overwrite_ok: bool = False):
-    if exists(path) and not overwrite_ok:
-        raise FileExistsError(f"File exists bu overwrite_ok is false: {path}")
-    with open(path, "w") as f:
-        toml.dump(data, f, encoder=toml.TomlNumpyEncoder())
 
 
 def ensure_file(path: str, default_dict: dict):
@@ -151,82 +142,6 @@ def load_file(path: str, default_dict: dict = None, quiet=False, require_exists=
     else:
         with open(path, "r") as file:
             return EasyDict(deep_dict_merge(toml.load(file), default_dict if default_dict is not None else {}, override=False))
-
-
-def get_most_epoch_model(base_path, suffix, require=True, max_epochs=-1):
-    prefix = normpath(base_path)
-    files = glob.glob(base_path + "*" + suffix)
-    epochs = [int(normpath(s).split(prefix)[1].split(suffix)[0]) for s in files]
-    if max_epochs > 0:
-        epochs = [e for e in epochs if e <= max_epochs]
-    if epochs == [] and require:
-        msg = f"Model required but file not found (max_epoch={max_epochs}), glob='{base_path}*{suffix}'"
-        logger.error(msg)
-        raise FileNotFoundError(msg)
-    if epochs == []:
-        return 0, f"{join(split(base_path)[0], 'model.toml')}"
-    return max(epochs), f"{base_path}{str(max(epochs))}.pth"
-
-
-# This cell will print out a list of lists of convolutional layers which will
-# go from a given in_dim to a given out_dim within a max number of layers and with some max kernel size/padding/stride settings
-# This is based on the equations from PyTorch documentation: https://pytorch.org/docs/stable/generated/torch.nn.Conv3d.html#conv3d
-def layer_config(in_dim, out_dim, max_layers, max_ksize=4, max_pad=2, max_stride=2):
-    """
-    in_dim: this is the leaf_dim in rocnet (one edge of a cubic volume)
-    out_dim: dimensions of the node in rocnet (also one edge of a cubic volume)
-    max_layers: maximum allowable convolutional layers
-    max_ksize: maximum kernel size for any convolutional layer
-    max_pad: maximum padding for any convolutional layer
-    max_stride: maximum stride for any convolutional layer
-
-    Output is in the form of a tree, see print_tree for how this is interpreted.
-    """
-    ksize = range(1, max_ksize + 1)
-    pad = range(0, max_pad + 1)
-    stride = range(1, max_stride + 1)
-
-    def next_layer(lvl_in, k_in, p_in, s_in, level):
-        children = []
-        for k in ksize:
-            for p in pad:
-                for s in stride:
-                    DILATION = 1.0
-                    lvl_out = (lvl_in + 2 * p - DILATION * (k - 1) - 1) / s + 1
-                    if not float(lvl_out).is_integer():
-                        pass
-                    elif lvl_out < out_dim or lvl_out >= lvl_in:
-                        pass
-                    elif level + 1 < max_layers:
-                        children.append(next_layer(lvl_out, k, p, s, level + 1))
-                    elif level + 1 == max_layers and lvl_out == out_dim:
-                        children.append(next_layer(lvl_out, k, p, s, level + 1))
-        return {"in": lvl_in, "level": level, "k": k_in, "p": p_in, "s": s_in, "children": children}
-
-    return next_layer(in_dim, 0, 0, 0, 0)
-
-
-def print_tree(tree, _prefix=[]):
-    """
-      Print a tree produced by the layer_config function.
-      This is recursive, leave the _prefix argument alone when calling this.
-      Output is printed sequence of arrays, where each array defines a set of convolution
-      parameters which start at leaf_dim (the length of one edge of a leaf node in voxels)
-      and end at whatever dimension the internal rocnet node size is (in this case 4)
-    [[ 0. 16.  0.  0.  0.] <- init condition (leaf_dim=16 === in_dim of next layer)
-     [ 1. 15.  2.  0.  1.] <- first layer (k=2, p=0, s=1, out_dim=15 === in_dim of next layer)
-     [ 2.  8.  1.  0.  2.] <- second layer (k=1, p=1, s=2, out_dim=8 === in_dim of next layer)
-     [ 3.  4.  2.  0.  2.]] <- third layer (k=2, p=0, s=2, out_dim=4 === input to the node encoder)
-    [[ 0. 16.  0.  0.  0.] <- init condition for the next possible configuration
-     [ 1.  8.  2.  0.  2.]
-     [ 2.  7.  2.  0.  1.]
-     ...
-    """
-    lvl = [tree["level"], tree["in"], tree["k"], tree["p"], tree["s"]]
-    for c in tree["children"]:
-        print_tree(c, _prefix + lvl)
-    if len(tree["children"]) == 0 and tree["in"] == 4:
-        print(np.array(_prefix + lvl).reshape(-1, 5))
 
 
 def sizeof_fmt(num, suffix="B", metric=False):
