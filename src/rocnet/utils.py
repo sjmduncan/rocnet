@@ -81,7 +81,7 @@ def deep_dict_compare_schema(schema: dict, extant: dict):
         elif isinstance(extant, type(schema)):
             return True
         else:
-            logger.error(f"Type mismatch: {extant}({type(extant)} != {schema}({type(schema)})")
+            logger.warning(f"Type mismatch type(extant)!=type(ref): {extant}({type(extant)} != {schema}({type(schema)})")
             return False
 
     return _compare_schema(schema, extant)
@@ -91,14 +91,17 @@ def deep_dict_compare_schema_values(ref, extant):
     if not deep_dict_compare_schema(ref, extant):
         return False
 
-    def _compare_values(schema, extant):
-        if isinstance(schema, dict):
-            return all(_compare_values(schema[k], extant[k]) for k in schema)
-        if isinstance(schema, list):
-            return all(_compare_values(schema[idx], extant[idx]) for idx in range(len(schema)))
-        return schema == extant
+    def _compare_values(k, ref, extant):
+        if isinstance(ref, dict):
+            return all(_compare_values(k, ref[k], extant[k]) for k in ref)
+        if isinstance(ref, list):
+            return all(_compare_values(f"{k}[{idx}]", ref[idx], extant[idx]) for idx in range(len(ref)))
 
-    return _compare_values(ref, extant)
+        if ref != extant:
+            logger.warning(f"Value mismatch extant!=ref:  {extant} != {ref}, key='{k}'")
+        return ref == extant
+
+    return _compare_values("root", ref, extant)
 
 
 def ensure_file(path: str, default_dict: dict):

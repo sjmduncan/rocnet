@@ -17,7 +17,7 @@ logger.addHandler(log_handler_stdout)
 
 DEFAULT_CONFIG = {
     "feature_code_size": 80,
-    "voxel_channels": 1,
+    "voxel_channels": 0,
     "classifier_hidden_size": 200,
     "node_channels": 64,
     "node_channels_internal": 128,
@@ -104,6 +104,8 @@ class RocNet:
         self.decoder = model.Decoder(self.cfg)
         self.encoder.load_state_dict(mod_state["encoder"])
         self.decoder.load_state_dict(mod_state["decoder"])
+        self.encoder.to(torch.device("cuda"))
+        self.decoder.to(torch.device("cuda"))
 
     def save(self, model_path: str, metadata: dict, save_prev_snapshot: bool = False, best_so_far: bool = False):
         """Save the encoder & decoder model weights to '{base_path}_encoder.pth' and '${base_path}_decoder.pth' respectively"""

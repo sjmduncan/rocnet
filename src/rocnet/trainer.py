@@ -55,7 +55,7 @@ def check_training_cfg(cfg):
 
 
 class Trainer:
-    def __init__(self, run_dir: str, cfg: dict, dataset: Dataset, valid_dataset: Dataset):
+    def __init__(self, run_dir: str, cfg: dict, dataset: Dataset, valid_dataset: Dataset, resume_from: str = None):
         """"""
         model = RocNet(cfg.model)
         self.model = model
@@ -67,7 +67,12 @@ class Trainer:
         dataset.load(model.cfg.grid_dim, model.cfg.leaf_dim)
         valid_dataset.load(model.cfg.grid_dim, model.cfg.leaf_dim)
 
-        model.train()
+        # model.load must be called before the optimisers and loss schedulers are instantiated
+        # otherwise they'll be optimising the old weights tensors.
+        if resume_from is not None:
+            self.model.load(f"{resume_from}.pth")
+
+        self.model.train()
         self.start_epoch = 0
         self.encoder_opt = torch.optim.Adam(model.encoder.parameters(), cfg.learning.lr_init)
         self.encoder_sched_warmup = torch.optim.lr_scheduler.LinearLR(self.encoder_opt, start_factor=cfg.learning.lr_warmup / cfg.learning.lr_init, total_iters=cfg.learning.warmup_epochs)
@@ -75,6 +80,13 @@ class Trainer:
         self.decoder_opt = torch.optim.Adam(model.decoder.parameters(), cfg.learning.lr_init)
         self.decoder_sched_warmup = torch.optim.lr_scheduler.LinearLR(self.decoder_opt, start_factor=cfg.learning.lr_warmup / cfg.learning.lr_init, total_iters=cfg.learning.warmup_epochs)
         self.decoder_sched_exp = torch.optim.lr_scheduler.ExponentialLR(self.decoder_opt, gamma=cfg.learning.exp_gamma)
+        if resume_from is not None:
+            state_dict = torch.load(f"{resume_from}_training.pth")
+            self.decoder_sched_exp.load_state_dict(state_dict["decoder_lr_scheduler"])
+            self.encoder_sched_exp.load_state_dict(state_dict["encoder_lr_scheduler"])
+            self.decoder_opt.load_state_dict(state_dict["decoder_optimiser"])
+            self.encoder_opt.load_state_dict(state_dict["encoder_optimiser"])
+            self.loss_per_epoch = loadtxt(f"{resume_from}_loss.csv")
 
     def save_snapshot(self, base_path: str, might_be_final: bool, metadata: dict):
         """Save a snapshot of the model, loss files, and optimiser/scheduler states"""
@@ -89,18 +101,6 @@ class Trainer:
             f"{base_path}_training.pth",
         )
         savetxt(f"{base_path}_loss.csv", self.loss_per_epoch)
-
-    def load_snapshot(self, base_path: str):
-        """Load a snapshot of the model, loss files, and optimiser/scheduler states"""
-        state_dict = torch.load(f"{base_path}_training.pth")
-        self.decoder_sched_exp.load_state_dict(state_dict["decoder_lr_scheduler"])
-        self.encoder_sched_exp.load_state_dict(state_dict["encoder_lr_scheduler"])
-        self.decoder_opt.load_state_dict(state_dict["decoder_optimiser"])
-        self.encoder_opt.load_state_dict(state_dict["encoder_optimiser"])
-        self.loss_per_epoch = loadtxt(f"{base_path}_loss.csv")
-        self.model.load(f"{base_path}.pth")
-        self.model.encoder.cuda()
-        self.model.decoder.cuda()
 
     def save_snapshot_prev(self, base_path: str, dicts: dict, metadata: dict):
         self.model.save(f"{base_path}.pth", metadata, save_prev_snapshot=True, best_so_far=True)
@@ -123,6 +123,7 @@ class Trainer:
             avg_loss = torch.mean(full_losses, axis=0)
             return full_losses, avg_loss
 
+        self.model.train()
         logger.info(f"Training for {self.cfg.max_epochs} epochs")
         loss_log_suffix = ["R", "L", "T", "R", "L", "T"]
         done = False
@@ -194,7 +195,7 @@ class Trainer:
             epoch_diff = epoch_time - last_epoch_time
             remainin_diff = td_to_txt((self.cfg.max_epochs - epoch) * epoch_diff)
             epoch_duration = td_to_txt(epoch_diff)
-            logger.info(f"{epoch+1:4}        {epoch_duration.h:02}:{epoch_duration.m:02}:{epoch_duration.s:02} {remainin_diff.h:02}:{remainin_diff.m:02}:{remainin_diff.s:02} ({epoch_time})")
+            logger.info(f"{epoch+1:4}        epoch: {epoch_duration.h:02}:{epoch_duration.m:02}:{epoch_duration.s:02} remaining: {remainin_diff.h:02}:{remainin_diff.m:02}:{remainin_diff.s:02} total: {epoch_time}")
             last_epoch_time = epoch_time
             if done or stopping:
                 return True
