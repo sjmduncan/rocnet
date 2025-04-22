@@ -41,7 +41,7 @@ def load_laz_as_voxel_indices(filepath, vox_size):
     return np.unique(laz.xyz // vox_size, axis=0)
 
 
-def load_points(file_path, grid_dim=None, scale=None, vox_size=None):
+def load_points(file_path, grid_dim=None, scale=1.0, vox_size=None):
     ext = splitext(file_path)[1]
     if ext in [".laz", ".las"]:
         return load_laz_as_voxel_indices(file_path, vox_size)
