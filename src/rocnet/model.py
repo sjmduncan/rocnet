@@ -117,9 +117,9 @@ class _NodeEncoder(nn.Module):
     def __init__(self, node_channels: int, node_channels_inernal: int):
         super().__init__()
         self.child_conv = [nn.Conv3d(node_channels, node_channels_inernal, kernel_size=1, stride=1, bias=False) for _ in range(8)]
-        [self.add_module(f"child{idx+1}", mod) for idx, mod in enumerate(self.child_conv)]
+        [self.add_module(f"child{idx + 1}", mod) for idx, mod in enumerate(self.child_conv)]
         self.child_bn = [nn.BatchNorm3d(node_channels_inernal, track_running_stats=False) for _ in range(8)]
-        [self.add_module(f"bn{idx+1}", mod) for idx, mod in enumerate(self.child_bn)]
+        [self.add_module(f"bn{idx + 1}", mod) for idx, mod in enumerate(self.child_bn)]
 
         self.bn11 = nn.BatchNorm3d(node_channels_inernal, track_running_stats=False)
         self.second = nn.Conv3d(node_channels_inernal, node_channels, kernel_size=3, stride=1, padding=1)
@@ -155,7 +155,7 @@ class Encoder(nn.Module):
         self.leaf_encoder_empty = _LeafEncoderEmpty(cfg.node_channels)
         self.n_levels = int(log2(cfg.grid_dim / cfg.leaf_dim))
         self.node_encoders = [_NodeEncoder(cfg.node_channels, cfg.node_channels_internal) for _ in range(self.n_levels)]
-        [self.add_module(f"NodeEncoder{idx+1}", mod) for idx, mod in enumerate(self.node_encoders)]
+        [self.add_module(f"NodeEncoder{idx + 1}", mod) for idx, mod in enumerate(self.node_encoders)]
         if cfg.has_root_encoder:
             self.root_encoder = _RootEncoder(cfg.feature_code_size, cfg.node_channels)
         self.has_root_encoder = cfg.has_root_encoder
@@ -266,9 +266,9 @@ class _NodeDecoder(nn.Module):
         super().__init__()
         self.mlp = nn.ConvTranspose3d(node_channels, node_channels_internal, kernel_size=3, stride=1, padding=1, bias=False)
         self.child_mlp = [nn.ConvTranspose3d(node_channels_internal, node_channels, kernel_size=1, stride=1, bias=False) for _ in range(8)]
-        [self.add_module(f"mlp_child{idx+1}", mod) for idx, mod in enumerate(self.child_mlp)]
+        [self.add_module(f"mlp_child{idx + 1}", mod) for idx, mod in enumerate(self.child_mlp)]
         self.child_bn = [nn.BatchNorm3d(node_channels, track_running_stats=False) for _ in range(8)]
-        [self.add_module(f"bn{idx+1}", mod) for idx, mod in enumerate(self.child_bn)]
+        [self.add_module(f"bn{idx + 1}", mod) for idx, mod in enumerate(self.child_bn)]
 
         self.tanh = nn.Tanh()
         self.tanh = nn.ELU()
@@ -337,7 +337,7 @@ class Decoder(nn.Module):
         self.leaf_decoder = _LeafDecoder(cfg.leaf_dim, cfg.voxel_channels, cfg.node_channels)
         self.n_levels = int(log2(cfg.grid_dim / cfg.leaf_dim))
         self.node_decoders = [_NodeDecoder(cfg.node_channels, cfg.node_channels_internal) for _ in range(self.n_levels)]
-        [self.add_module(f"NodeDecoder{idx+1}", mod) for idx, mod in enumerate(self.node_decoders)]
+        [self.add_module(f"NodeDecoder{idx + 1}", mod) for idx, mod in enumerate(self.node_decoders)]
         if cfg.has_root_encoder:
             self.root_decoder = _RootDecoder(cfg.feature_code_size, cfg.node_channels)
         self.has_root_decoder = cfg.has_root_encoder
@@ -431,7 +431,7 @@ class Decoder(nn.Module):
         tree: expected octree structure
         returns: [reconstruction_loss, node_classifier_loss] (a tensor with two elements)"""
 
-        def decode_node_leaf(tgt, est, l):
+        def decode_node_leaf(tgt, est, level):
             label_prob = self.node_classifier(est)
             label_loss = self._classify_loss_fn(label_prob, tgt.node_type.cuda())
             if tgt.is_leaf():
@@ -442,8 +442,8 @@ class Decoder(nn.Module):
                     recon_loss = self.recon_loss(fea, tgt.leaf_feature.cuda())
                     return recon_loss, label_loss
             else:  # Non-leaf node
-                children = self.node_decoders[l](est)
-                child_losses = [decode_node_leaf(tgt_child, est_child, l + 1) for (tgt_child, est_child) in zip(tgt.children, children)]
+                children = self.node_decoders[level](est)
+                child_losses = [decode_node_leaf(tgt_child, est_child, level + 1) for (tgt_child, est_child) in zip(tgt.children, children)]
 
                 child_recon_loss = sum([loss[0] for loss in child_losses])
                 child_label_loss = sum([loss[1] for loss in child_losses])

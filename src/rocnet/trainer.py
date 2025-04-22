@@ -127,12 +127,13 @@ class Trainer:
         logger.info(f"Training for {self.cfg.max_epochs} epochs")
         loss_log_suffix = ["R", "L", "T", "R", "L", "T"]
         done = False
-        logger.info(f"start: {datetime.now()}")
+        train_start_time = datetime.now()
+        logger.info(f"start: {train_start_time}")
         last_was_min = False
         this_is_min = False
-        last_epoch_time = datetime.now()
+        last_epoch_time = train_start_time
         for epoch in range(self.start_epoch, self.cfg.max_epochs):
-            logger.info(f"{epoch+1:4}/{self.cfg.max_epochs:<5} LR={self.encoder_opt.param_groups[0]['lr']:<12.10f} ({split(split(self.out_dir)[0])[1]})")
+            logger.info(f"{epoch + 1:4}/{self.cfg.max_epochs:<5} LR={self.encoder_opt.param_groups[0]['lr']:<12.10f} ({split(split(self.out_dir)[0])[1]})")
             #################### Training
             train_losses = []
             train_iter = torch.utils.data.DataLoader(self.dataset, batch_size=self.cfg.batch_size, shuffle=True, collate_fn=collator, pin_memory=self.model.cuda, pin_memory_device="cuda")
@@ -168,8 +169,8 @@ class Trainer:
 
             train_logtxt = [f"{n[0]:9.4f}{n[1]}" for n in zip(list(epoch_loss[2:5]), loss_log_suffix[:3])]
             valid_logtxt = [f"{n[0]:9.4f}{n[1]}" for n in zip(list(epoch_loss[5:8]), loss_log_suffix[:3])]
-            logger.info(f"{epoch+1:4} train {' '.join(train_logtxt)}")
-            logger.info(f"{epoch+1:4} valid {' '.join(valid_logtxt)}")
+            logger.info(f"{epoch + 1:4} train {' '.join(train_logtxt)}")
+            logger.info(f"{epoch + 1:4} valid {' '.join(valid_logtxt)}")
             this_is_min = False
             if epoch > 0:
                 min_loss = np.min(self.loss_per_epoch[:, 2:], axis=0)
@@ -177,8 +178,8 @@ class Trainer:
                 loss_diff_last = self.loss_per_epoch[-1, 2:] - epoch_loss[2:]
                 train_diff_logtxt = [f"{n[0]:9.4f}{n[1]}" for n in zip(list(np.concatenate([loss_diff_abs[:3], loss_diff_last[:3]])), loss_log_suffix)]
                 valid_diff_logtxt = [f"{n[0]:9.4f}{n[1]}" for n in zip(list(np.concatenate([loss_diff_abs[3:], loss_diff_last[3:]])), loss_log_suffix)]
-                logger.info(f"{epoch+1:4} train {' '.join(train_diff_logtxt)}")
-                logger.info(f"{epoch+1:4} valid {' '.join(valid_diff_logtxt)}")
+                logger.info(f"{epoch + 1:4} train {' '.join(train_diff_logtxt)}")
+                logger.info(f"{epoch + 1:4} valid {' '.join(valid_diff_logtxt)}")
                 done = (self.cfg.validation.stop_threshold > 0) and (epoch > self.cfg.validation.min_stop_epochs) and (loss_diff_abs[-1] < -self.cfg.validation.stop_threshold)
                 this_is_min = loss_diff_abs[-1] > 0
             elif self.cfg.profile.enabled:
@@ -189,13 +190,15 @@ class Trainer:
 
             if do_snapshot or done or stopping:
                 logger.info(f"saving {'final model' if (done or stopping) else 'snapshot'} at {epoch + 1} epochs")
-                base_path = join(self.out_dir, f"model_{epoch+1}")
+                base_path = join(self.out_dir, f"model_{epoch + 1}")
                 self.save_snapshot(base_path, this_is_min, snapshot_meta)
             epoch_time = datetime.now()
             epoch_diff = epoch_time - last_epoch_time
-            remainin_diff = td_to_txt((self.cfg.max_epochs - epoch) * epoch_diff)
-            epoch_duration = td_to_txt(epoch_diff)
-            logger.info(f"{epoch+1:4}        epoch: {epoch_duration.h:02}:{epoch_duration.m:02}:{epoch_duration.s:02} remaining: {remainin_diff.h:02}:{remainin_diff.m:02}:{remainin_diff.s:02} total: {epoch_time}")
+            total_duration = epoch_time - train_start_time
+            rd = td_to_txt((self.cfg.max_epochs - epoch) * epoch_diff)
+            ed = td_to_txt(epoch_diff)
+            td = td_to_txt(total_duration)
+            logger.info(f"{epoch + 1:4} time   epoch: {ed.h:02}:{ed.m:02}:{ed.s:02} total: {td.h:02}:{td.m:02}:{td.s:02} remaining: {rd.h:02}:{rd.m:02}:{rd.s:02}")
             last_epoch_time = epoch_time
             if done or stopping:
                 return True
@@ -215,7 +218,7 @@ class Trainer:
 
             #################### If loss went up during this epoch, snapshot the previous epoch as potential best-case
             if last_was_min and not this_is_min and not do_snapshot:
-                logger.info(f"{epoch+1:4}  saving previous epoch weights as potential abs min")
+                logger.info(f"{epoch + 1:4}  saving previous epoch weights as potential abs min")
                 base_path = join(self.out_dir, f"model_{epoch}")
                 self.save_snapshot_prev(base_path, dicts, snapshot_meta)
             last_was_min = this_is_min

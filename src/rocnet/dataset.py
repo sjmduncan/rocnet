@@ -62,7 +62,7 @@ def filelist(folder, train=False, max_samples=-1, min_size=-1, file_list=None, r
         all_files = glob.glob(join(folder, "*", midfix, "*.npy")) if recurse else glob.glob(join(folder, midfix, "*.npy"))
         if min_size > 0:
             all_files = [f for f in all_files if getsize(f) > min_size]
-        if max_samples > 0:
+        if max_samples:
             files = random.sample(all_files, min(int(max_samples), len(all_files)))
             if file_list is not None and not exists(file_list) and max_samples == len(files):
                 savetxt(file_list, files, fmt="%s")
@@ -106,8 +106,6 @@ class Dataset(torch.utils.data.Dataset):
             self.grid_div = self.metadata.grid_dim / model_grid_dim
 
         logger.info(f"grid_div={self.grid_div}")
-        assert isinstance(max_samples, int), "max_samples should be integer type"
-        assert max_samples > 0, "max_samples should be greater than zero"
         self.max_samples = max_samples
         logger.info(f"max_samples={self.max_samples}")
 
