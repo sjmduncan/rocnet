@@ -20,8 +20,6 @@ def points_to_features(occupied_indices, grid_dim: int, leaf_dim: int, channels:
     returns: List of octrees, each in the form of a post-ordered list of node types and leaf features.
              The number of octrees returned is determined by how many cubes of size grid_dim are required to contain the occupied indices
     """
-    bl = np.min(occupied_indices[:, :3], axis=0)
-
     leaf_features = []
 
     def get_feature_and_type(indices, origin, dim):
@@ -66,7 +64,7 @@ def points_to_features(occupied_indices, grid_dim: int, leaf_dim: int, channels:
                 axis=0,
             )
 
-    node_types = get_feature_and_type(occupied_indices, bl, grid_dim)
+    node_types = get_feature_and_type(occupied_indices, [0, 0, 0], grid_dim)
     return torch.stack(leaf_features).type(torch.float32), node_types
 
 

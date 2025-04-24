@@ -180,5 +180,5 @@ def _load_resourceutilization(idx, total):
     ram = psutil.virtual_memory()
     proc = psutil.Process()
 
-    logger.info(f"file {idx:>6}/{total}, Free Mem: GPU={100*cu[0]/cu[1]:4.1f}% of {sizeof_fmt(cu[1])}, RAM={100-ram.percent:4.2f}% of {sizeof_fmt(ram.total)}")
-    logger.info(f"file {idx:>6}/{total}, Mem Usage: GPU=, CPU={sizeof_fmt(proc.memory_info().rss)}")
+    logger.info(f"file {idx:>6}/{total:<6} Free Mem: GPU={100 * cu[0] / cu[1]:4.1f}% of {sizeof_fmt(cu[1])}, RAM={100 - ram.percent:4.2f}% of {sizeof_fmt(ram.total)}")
+    logger.info(f"     {'':>6} {'':<6} Mem Usage: GPU=, CPU={sizeof_fmt(proc.memory_info().rss)}")

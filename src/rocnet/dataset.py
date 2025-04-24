@@ -31,24 +31,42 @@ DEFAULT_METADATA = {
 }
 
 
-def load_npy(file_path, scale, grid_dim):
-    pts = np.load(file_path, allow_pickle=True) * scale
-    return pts.astype("float32")
+def load_npy(file_path, scale):
+    """Load a .npy file containing a list of occupied voxel grid indices, and optionally byte-encoded RGB colors
+
+    If scale<0 then the scaled indices will be truncated to integer values, and if there is color data then all
+    colors with indices that round to the same value will be averaged. In this case the output will be the unique
+    rounded indices with their matching average colors.
+
+    file_path: File produced by numpy.save
+    scale: scale factor to apply to indices
+    """
+    pts = np.load(file_path, allow_pickle=True).astype("float32")
+    assert pts.shape[1] in [3, 6], "Only occupancy and colour point attributes are supported (3-vectors or 6-vectors in .npy files)"
+    pts[:, :3] = pts[:, :3] * scale
+    pts[:, 3:] = pts[:, 3:] / 256.0
+    if scale < 1.0:
+        indices = (pts[:, :3]).astype("int")
+        uniques = np.unique(indices, axis=0)
+        colors = [np.mean(pts[np.all(indices == u, axis=1), 3:], axis=0) for u in uniques]
+        pts = np.concat([uniques, colors], axis=1)
+    return pts
 
 
 def load_laz_as_voxel_indices(filepath, vox_size):
+    """Load a .laz file, round to the voxel size, and return one index for each occupied voxel. Attributes are not returned."""
     laz = lp.read(filepath)
     return np.unique(laz.xyz // vox_size, axis=0)
 
 
-def load_points(file_path, grid_dim=None, scale=1.0, vox_size=None):
+def load_points(file_path, scale=1.0, vox_size=None):
     ext = splitext(file_path)[1]
     if ext in [".laz", ".las"]:
         return load_laz_as_voxel_indices(file_path, vox_size)
     elif ext == ".npy":
-        return load_npy(file_path, scale, grid_dim)
+        return load_npy(file_path, scale)
     else:
-        raise ValueError(f"File type not understood. Extension is {ext}, should be one of .las, .laz, or .npy")
+        raise ValueError(f"File type not understood. Extension is {ext}, should be .las, .laz, or .npy")
 
 
 def filelist(folder, train=False, max_samples=-1, min_size=-1, file_list=None, recurse=False):
@@ -148,8 +166,7 @@ class Dataset(torch.utils.data.Dataset):
             for idx, f in enumerate(self.files):
                 if idx % print_mod == 0:
                     utils._load_resourceutilization(idx, len(self.files))
-                indices = load_npy(f, 1.0 / self.grid_div, grid_dim)
-                indices[:, 3:] = indices[:, 3:] / 256
+                indices = load_npy(f, 1.0 / self.grid_div)
                 features, labels = points_to_features(indices, grid_dim, leaf_dim, indices.shape[1] - 3)
                 tree = Octree(features.float(), labels.int())
                 self.trees.append(tree)
