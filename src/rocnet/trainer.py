@@ -20,7 +20,7 @@ START_TIME = datetime.now().strftime(TIME_FMT)
 
 DEFAULT_CONFIG = {
     "dataset_path": "../rocnet.data/test",
-    "max_samples": -1,
+    "max_samples": False,
     "max_epochs": 300,
     "batch_size": 50,
     "verbose": False,

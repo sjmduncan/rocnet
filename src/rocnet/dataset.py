@@ -48,8 +48,11 @@ def load_npy(file_path, scale):
     if scale < 1.0:
         indices = (pts[:, :3]).astype("int")
         uniques = np.unique(indices, axis=0)
-        colors = [np.mean(pts[np.all(indices == u, axis=1), 3:], axis=0) for u in uniques]
-        pts = np.concat([uniques, colors], axis=1)
+        if pts.shape[1] == 6:
+            colors = [np.mean(pts[np.all(indices == u, axis=1), 3:], axis=0) for u in uniques]
+            pts = np.concat([uniques, colors], axis=1)
+        else:
+            pts = uniques
     return pts
 
 
@@ -117,7 +120,7 @@ class Dataset(torch.utils.data.Dataset):
         self.folder = folder
         self.train = train
         logger.info(f"Loading dataset metadata file: {join(folder, 'meta.toml')}, train={train}")
-        self.metadata = utils.ensure_file(join(folder, "meta.toml"), DEFAULT_METADATA)  # , True, True)
+        self.metadata = utils.ensure_file(join(folder, "meta.toml"), DEFAULT_METADATA)
         if "grid_dim" in self.metadata and self.metadata.grid_dim < model_grid_dim:
             raise ValueError(f"Dataset grid_dim check failed: expected dataset.grid_dim <= model.grid_dim (found dataset.grid_dim={self.metadata.grid_dim}, model.grid_dim={model_grid_dim})")
         elif "grid_dim" in self.metadata and self.metadata.grid_dim > model_grid_dim:
