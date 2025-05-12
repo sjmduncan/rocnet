@@ -178,5 +178,7 @@ def _load_resourceutilization():
     """Print the total CPU and GPU memory use while loading data"""
     cu = torch.cuda.mem_get_info()
     ram = psutil.virtual_memory()
+    proc = psutil.Process()
+    proc_usage = proc.memory_info()
 
-    return f"Mem Use: GPU={sizeof_fmt(cu[1] - cu[0])}/{sizeof_fmt(cu[1])} ({100 * (cu[1] - cu[0]) / cu[1]:4.1f}%) RAM={sizeof_fmt(ram.used)}/{sizeof_fmt(ram.total)} ({100 - ram.percent:4.2f}%)"
+    return f"Mem Use: GPU={sizeof_fmt(cu[1] - cu[0])}/{sizeof_fmt(cu[1])} ({100 * (cu[1] - cu[0]) / cu[1]:4.1f}%) RAM={sizeof_fmt(proc_usage.rss)}/{sizeof_fmt(ram.total)} ({100 * (proc_usage.rss / ram.total):4.2f}%)"
