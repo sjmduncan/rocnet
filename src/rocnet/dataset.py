@@ -168,7 +168,7 @@ class Dataset(torch.utils.data.Dataset):
         if self.metadata.type == "tileset":
             for idx, f in enumerate(self.files):
                 if idx % print_mod == 0:
-                    utils._load_resourceutilization(idx, len(self.files))
+                    logger.info(f"{idx:>6}/{len(self.files):<6} {utils._load_resourceutilization()}")
                 indices = load_npy(f, 1.0 / self.grid_div)
                 features, labels = points_to_features(indices, grid_dim, leaf_dim, indices.shape[1] - 3)
                 tree = Octree(features.float(), labels.int())
@@ -176,7 +176,7 @@ class Dataset(torch.utils.data.Dataset):
         else:
             for idx, f in enumerate(self.files):
                 if idx % print_mod == 0:
-                    utils._load_resourceutilization(idx, len(self.files))
+                    logger.info(f"{idx:>6}/{len(self.files):<6} {utils._load_resourceutilization()}")
                 indices = load_laz_as_voxel_indices(f, vox_size=self.metadata.vox_size)
                 features, labels = points_to_features(indices, grid_dim, leaf_dim)
                 tree = Octree(features.float(), labels.int())

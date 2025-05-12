@@ -10,7 +10,7 @@ from numpy import array, average, concatenate, loadtxt, savetxt
 
 from rocnet.dataset import Dataset
 from rocnet.rocnet import RocNet
-from rocnet.utils import td_to_txt
+from rocnet.utils import td_to_txt, _load_resourceutilization
 
 logger = logging.getLogger(__name__)
 log_handler_stdout = logging.StreamHandler(sys.stdout)
@@ -19,7 +19,7 @@ TIME_FMT = "%Y-%m-%d_%H.%M.%S"
 START_TIME = datetime.now().strftime(TIME_FMT)
 
 DEFAULT_CONFIG = {
-    "dataset_path": "../rocnet.data/test",
+    "dataset_path": "../rocnet-data/test",
     "max_samples": False,
     "max_epochs": 300,
     "batch_size": 50,
@@ -202,6 +202,8 @@ class Trainer:
             last_epoch_time = epoch_time
             if done or stopping:
                 return True
+            if epoch == self.start_epoch:
+                logger.info(f"{epoch + 1:4} {_load_resourceutilization()}")
 
             #################### Adjust learning rate for next epoch
             if epoch <= self.cfg.learning.warmup_epochs:
